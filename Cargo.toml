@@ -1,0 +1,30 @@
+[package]
+name = "modpack_tool"
+version = "0.1.0"
+authors = ["Euan Rochester <euan@rochester.me.uk>"]
+
+[dependencies]
+serde = "*"
+serde_json = "*"
+serde_derive = "*"
+hyper = "*"
+url = "*"
+env_logger = "*"
+log = "*"
+rustc-serialize = "*"
+clap = "*"
+error-chain = "*"
+sha1 = "*"
+zip = "*"
+time = "*"
+slog = "*"
+slog-stdlog = "*"
+slog-term = "*"
+slog-json = "*"
+slog-stream = "*"
+futures = "0.1"
+
+[dependencies.scan-rules]
+version = "*"
+features = ["nightly-pattern"]
+
