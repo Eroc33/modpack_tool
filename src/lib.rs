@@ -22,6 +22,8 @@ extern crate time;
 extern crate zip;
 extern crate futures;
 
+pub mod cache;
+pub mod curseforge;
 pub mod download;
 pub mod util;
 pub mod maven;

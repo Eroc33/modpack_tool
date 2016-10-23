@@ -4,6 +4,7 @@ extern crate serde_json;
 
 extern crate modpack_tool;
 
+use modpack_tool::curseforge;
 use modpack_tool::types::{ModSource, ModpackConfig};
 use scan_rules::input::IntoScanCursor;
 
@@ -21,19 +22,19 @@ fn main() {
     let mut pack: ModpackConfig = serde_json::de::from_reader(file)
         .expect("pack file in bad format");
 
-    let modsource = scan!{to_add;
-    ("https://minecraft.curseforge.com/projects/",let project <| until_pat_a::<Everything<String>,&str>("/"),"/files/",let ver, ["/download"]?) => ModSource::CurseforgeMod{id:project,version:ver},
+    let modsource: ModSource = scan!{to_add;
+    ("https://minecraft.curseforge.com/projects/",let project <| until_pat_a::<Everything<String>,&str>("/"),"/files/",let ver, ["/download"]?) => curseforge::Mod{id:project,version:ver}.into(),
     (.._) => panic!("Unknown modsource url"),
   }.expect("bad mod url input");
 
     match modsource {
-        ModSource::CurseforgeMod { ref id, .. } => {
+        ModSource::CurseforgeMod(curseforge::Mod{ ref id, .. }) => {
             let new_id = id;
             pack.mods = pack.mods
                 .into_iter()
                 .filter(|source| {
                     match *source {
-                        ModSource::CurseforgeMod { ref id, ref version } => {
+                        ModSource::CurseforgeMod(curseforge::Mod{ ref id, ref version }) => {
                             if id == new_id {
                                 println!("removing old version ({})", version);
                                 false

@@ -6,11 +6,13 @@ use maven::{MavenArtifact, ResolvedArtifact};
 use slog::Logger;
 use std::path::PathBuf;
 use url::{self, Url};
+use curseforge;
+use cache::Cache;
 
 #[derive(Serialize, Deserialize, Debug,Clone)]
 pub enum ModSource {
-    CurseforgeMod { id: String, version: i64 },
-    MavenMod {
+    CurseforgeMod (curseforge::Mod),
+    MavenMod{
         repo: String,
         artifact: MavenArtifact,
     },
@@ -23,15 +25,8 @@ impl Downloadable for ModSource {
                 log: Logger)
                 -> download::BoxFuture<()> {
         match self {
-            ModSource::CurseforgeMod { id, version } => {
-                futures::lazy(move || {
-                        let path = [id.as_str(), "files", version.to_string().as_str(), "download"]
-                            .join("/");
-                        let base = Url::from_str("http://minecraft.curseforge.com/projects/");
-                        base.and_then(|url| url.join(path.as_str())).map_err(download::Error::from)
-                    })
-                    .and_then(move |url| manager.download(&url, location, true, log))
-                    .boxed()
+            ModSource::CurseforgeMod ( modd ) => {
+                curseforge::Cache::install_at(modd,location,manager,log)
             }
             ModSource::MavenMod { repo, artifact } => {
                 futures::lazy(move || {
