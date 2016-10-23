@@ -19,16 +19,16 @@ extern crate zip;
 extern crate futures;
 
 use futures::Future;
+
+use modpack_tool::{Result, BoxFuture};
 use modpack_tool::download::{Downloadable, DownloadManager};
 use modpack_tool::hacks;
 use modpack_tool::maven;
 use modpack_tool::types::*;
-use modpack_tool::util;
-
-use modpack_tool::util::{Result,BoxFuture};
 
 use slog::{DrainExt, Logger};
 
+use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -101,16 +101,16 @@ fn download_modlist(mut pack_path: PathBuf,
 
     pack_path.push("mods");
     futures::lazy({
-        let pack_path = pack_path.clone();
-        move || {
-            std::fs::create_dir_all(&pack_path)?;
+            let pack_path = pack_path.clone();
+            move || {
+                std::fs::create_dir_all(&pack_path)?;
 
-            for entry in std::fs::read_dir(&pack_path)? {
-                let entry = entry?;
-                std::fs::remove_file(&entry.path())?;
+                for entry in std::fs::read_dir(&pack_path)? {
+                    let entry = entry?;
+                    std::fs::remove_file(&entry.path())?;
+                }
+                Ok(())
             }
-            Ok(())
-        }
         })
         .and_then(|_| mod_list.download(pack_path, manager, log).map_err(Into::into))
         .boxed()
@@ -136,68 +136,83 @@ fn install_forge(mut pack_path: PathBuf,
     let log = log.new(o!("stage"=>"install_forge"));
 
     pack_path.push("forge");
-    futures::lazy(move ||{
-        std::fs::create_dir_all(&pack_path)?;
-        Ok(())
-    }).and_then(move |_|{
-        let forge_maven_artifact_path = forge_artifact.to_path();
-        forge_artifact.reader(manager.clone(), log.clone())
-        .map_err(modpack_tool::util::Error::from)
-        .and_then(move |reader|{
-            futures::lazy(move ||{
-                let mut zip_reader = zip::ZipArchive::new(reader)?;
-                let version_id: String = {
-                    let version_reader = zip_reader.by_name("version.json")?;
-                    let version_info: Value = serde_json::from_reader(version_reader)?;
-                    version_info.find("id")
-                        .expect("bad version.json")
-                        .as_str()
-                        .expect("bad version.json id value")
-                        .into()
-                };
-                
-                let mut mc_path = mc_install_loc();
-                mc_path.push("versions");
-                mc_path.push(version_id.as_str());
-                mc_path.push(format!("{}.json", version_id.as_str()));
-                util::create_dir(mc_path.clone())?;
-                let mut version_file = std::fs::File::create(&mc_path)?;
-                std::io::copy(&mut zip_reader.by_name("version.json")?, &mut version_file)?;
-                hacks::hack_forge_version_json(mc_path)?;
-
-                let mut mc_path = mc_install_loc();
-                mc_path.push("libraries");
-                mc_path.push(forge_maven_artifact_path);
-                mc_path.pop();//pop the filename
-                Ok((version_id,mc_path))
-            }).and_then(move |(version_id,mc_path)|{
-                forge_artifact.install_at_no_classifier(&mc_path, manager, log.clone()).map_err(Into::into)
-                .map(move |_|{
-                    VersionId(version_id)
-                })
-            })
+    futures::lazy(move || {
+            std::fs::create_dir_all(&pack_path)?;
+            Ok(())
         })
-    }).boxed()
+        .and_then(move |_| {
+            let forge_maven_artifact_path = forge_artifact.to_path();
+            forge_artifact.reader(manager.clone(), log.clone())
+                .map_err(modpack_tool::Error::from)
+                .and_then(move |reader| {
+                    futures::lazy({
+                        let log = log.clone();
+                        move || {
+                            debug!(log,"Opening forge jar");
+                            let mut zip_reader = zip::ZipArchive::new(reader)?;
+                            let version_id: String = {
+                                debug!(log,"Reading version json");
+                                let version_reader = zip_reader.by_name("version.json")?;
+                                let version_info: Value = serde_json::from_reader(version_reader)?;
+                                version_info.find("id")
+                                    .expect("bad version.json")
+                                    .as_str()
+                                    .expect("bad version.json id value")
+                                    .into()
+                            };
+
+                            let mut mc_path = mc_install_loc();
+                            mc_path.push("versions");
+                            mc_path.push(version_id.as_str());
+                            debug!(log,"creating profile folder");
+                            fs::create_dir_all(mc_path.clone())?;
+                            
+                            mc_path.push(format!("{}.json", version_id.as_str()));
+                            
+                            debug!(log,"saving version json to minecraft install loc");
+                            let mut version_file = std::fs::File::create(&mc_path)?;
+                            std::io::copy(&mut zip_reader.by_name("version.json")?,
+                                          &mut version_file)?;
+                                          
+                            debug!(log,"Applying version json hacks");
+                            hacks::hack_forge_version_json(mc_path)?;
+
+                            let mut mc_path = mc_install_loc();
+                            mc_path.push("libraries");
+                            mc_path.push(forge_maven_artifact_path);
+                            mc_path.pop();//pop the filename
+                            Ok((version_id, mc_path))
+                        }})
+                        .and_then(move |(version_id, mc_path)| {
+                            forge_artifact.install_at_no_classifier(&mc_path, manager, log)
+                                .map_err(Into::into)
+                                .map(move |_| VersionId(version_id))
+                        })
+                })
+        })
+        .boxed()
 }
 
 fn main() {
     let path = std::env::args().nth(1).expect("pass pack as first argument");
-    
-    let log_path = path.clone()+".log";
-    
-    let log_file = std::fs::File::create(log_path).expect("Couldn't open log file");
-    let log_file_stream = slog_stream::stream(
-        log_file,
-        slog_json::default()
-    );
-    
 
-    let root = Logger::root(slog::duplicate(slog::LevelFilter::new(slog_term::streamer().compact().build(),slog::Level::Info),log_file_stream).fuse(),
+    let log_path = path.clone() + ".log";
+
+    let log_file = std::fs::File::create(log_path).expect("Couldn't open log file");
+    let log_file_stream = slog_stream::stream(log_file, slog_json::default());
+
+
+    let root = Logger::root(slog::duplicate(slog::LevelFilter::new(slog_term::streamer()
+                                                                       .compact()
+                                                                       .build(),
+                                                                   slog::Level::Debug),
+                                            log_file_stream)
+                                .fuse(),
                             o!());
     let log = root.new(o!());
     let download_manager = DownloadManager::new();
 
-    //slog_stdlog::set_logger(log.new(o!())).unwrap();
+    // slog_stdlog::set_logger(log.new(o!())).unwrap();
 
     info!(log, "loading pack config");
 
@@ -218,11 +233,15 @@ fn main() {
                                   download_manager.clone(),
                                   log.clone())
                         .and_then(move |id| {
-                            download_modlist(pack_path.clone(), mods, download_manager.clone(), log.clone())
+                            download_modlist(pack_path.clone(),
+                                             mods,
+                                             download_manager.clone(),
+                                             log.clone())
                                 .and_then(move |_| {
                                     add_launcher_profile(pack_path, pack_name, &id, log.clone())
                                 })
-                        }).wait()
+                        })
+                        .wait()
                 })
             }
         }

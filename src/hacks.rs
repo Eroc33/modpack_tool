@@ -5,13 +5,12 @@ use serde_json::{self, Value};
 use serde_json::value::ToJson;
 use std;
 use std::path::Path;
-use util;
 
 const HACK_REQUIRED: &'static [&'static str] = &["com.typesafe.akka", "com.typesafe"];
 
 const HACK_REPO_REDIRECT: &'static str = "https://repo1.maven.org/maven2/";
 
-pub fn hack_forge_version_json<P>(path: P) -> util::Result<()>
+pub fn hack_forge_version_json<P>(path: P) -> ::Result<()>
     where P: AsRef<Path>
 {
     let version_file = std::fs::File::open(path.as_ref())?;

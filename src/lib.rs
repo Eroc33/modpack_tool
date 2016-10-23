@@ -1,3 +1,5 @@
+// this allow can be removed after error_chain 0.5.1 or greater is released
+#![allow(redundant_closure)]
 #![feature(custom_derive,custom_attribute,slice_patterns,conservative_impl_trait,proc_macro)]
 #![deny(clippy)]
 
@@ -31,3 +33,24 @@ pub mod hacks;
 pub use download::Downloadable;
 
 pub use types::*;
+
+error_chain! {
+    links {
+        download::Error, download::ErrorKind, Download;
+    }
+    foreign_links{
+        ::std::io::Error, Io;
+        url::ParseError, Url;
+        hyper::Error, Hyper;
+        zip::result::ZipError,Zip;
+        serde_json::error::Error, Json;
+    }
+    errors {
+        UnknownScheme(t: String) {
+            description("unknown url scheme")
+            display("unknown url scheme: '{}'", t)
+        }
+    }
+}
+
+pub type BoxFuture<I> = futures::BoxFuture<I, Error>;

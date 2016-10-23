@@ -1,4 +1,4 @@
-//this allow can be removed after error_chain 0.5.1 or greater is released
+// this allow can be removed after error_chain 0.5.1 or greater is released
 #![allow(redundant_closure)]
 
 use futures;
@@ -81,7 +81,7 @@ impl DownloadManager {
                     path: PathBuf,
                     append_filename: bool,
                     log: Logger)
-                    -> impl ::download::Future<()> {
+                    -> impl Future<()> {
         util::download_with(url, path, append_filename, self.handle.deref(), log)
     }
 }

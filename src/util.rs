@@ -1,55 +1,19 @@
-#![allow(redundant_closure)]
 use download;
 use futures;
 use hyper;
-use serde_json;
 
 use slog::Logger;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Read, copy};
 use std::path::{Path, PathBuf};
 use time;
 use url::{self, Url};
-use zip;
-
-error_chain! {
-  links {
-    download::Error, download::ErrorKind, Download;
-  }
-  foreign_links{
-    io::Error, Io;
-    url::ParseError, Url;
-    hyper::Error, Hyper;
-    zip::result::ZipError,Zip;
-    serde_json::error::Error, Json;
-  }
-  errors {
-    UnknownScheme(t: String) {
-      description("unknown url scheme")
-      display("unknown url scheme: '{}'", t)
-    }
-  }
-}
-
-pub type BoxFuture<I> = futures::BoxFuture<I,Error>;
-
-pub fn create_dir(mut path: PathBuf) -> ::std::io::Result<()> {
-    path.set_file_name("");
-    ::std::fs::DirBuilder::new().recursive(true)
-        .create(path)?;
-    Ok(())
-}
 
 pub fn save_file<R>(mut reader: R, path: &Path) -> io::Result<u64>
     where R: Read
 {
     let mut file = File::create(path)?;
     copy(&mut reader, &mut file)
-}
-
-#[deprecated]
-pub fn download(url: &Url, path: PathBuf, append_filename: bool, log: Logger) -> impl download::Future<()> {
-    download_with(url, path, append_filename, &hyper::Client::new(), log)
 }
 
 fn epoch_tm() -> time::Tm {
@@ -61,7 +25,7 @@ pub fn download_with(url: &Url,
                      append_filename: bool,
                      client: &hyper::Client,
                      log: Logger)
-                     -> impl download::Future<()> {
+                     -> impl ::download::Future<()> {
     futures::done(_download_with(url, path, append_filename, client, log))
 }
 
@@ -74,9 +38,11 @@ pub fn _download_with(url: &Url,
                       -> download::Result<()> {
     let log = log.new(o!("url"=>url.to_string()));
     info!(log, "Downloading");
-    create_dir(path.clone())?;
+    fs::create_dir_all(path.clone())?;
 
     let mut headers = hyper::header::Headers::new();
+
+    headers.set(hyper::header::UserAgent("CorrosiveModpackTool/0.0.1".into()));
 
     // FIXME find a way to workout which mod file is which *before* downloading
     if path.exists() && path.is_file() {
@@ -116,7 +82,7 @@ use std::fmt::Debug;
 pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P,
                                                                dst: Q,
                                                                log: &Logger)
-                                                               -> ::std::io::Result<()> {
+                                                               -> io::Result<()> {
     info!(log, "symlinking {:?} to {:?}", src, dst);
     if SYMLINKS_BLOCKED.load(Ordering::Acquire) {
         warn!(log, "symlink permission denied, falling back to copy");
@@ -137,7 +103,7 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P,
 }
 
 #[cfg(windows)]
-fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> ::std::io::Result<()> {
+fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
     let metadata = ::std::fs::symlink_metadata(src.as_ref())?;
     if metadata.is_file() {
         ::std::os::windows::fs::symlink_file(src, dst)
@@ -149,6 +115,6 @@ fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> ::std::io::Result
 }
 
 #[cfg(unix)]
-fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> std::io::Result<()> {
+fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
     ::std::os::unix::fs::symlink(src, dst)
 }
