@@ -1,8 +1,7 @@
-// FIXME Forge devs are massive fucking idiots who refuse to actually match the spec
+// FIXME Forge devs refuse to actually match the spec
 
 use maven::MavenArtifact;
 use serde_json::{self, Value};
-use serde_json::value::ToJson;
 use std;
 use std::path::Path;
 
@@ -33,7 +32,7 @@ pub fn hack_forge_version_json<P>(path: P) -> ::Result<()>
                 .parse()
                 .expect("library name was not a maven identifier");
             if HACK_REQUIRED.contains(&artifact.group.as_str()) {
-                library.insert("url".to_string(), HACK_REPO_REDIRECT.to_json());
+                library.insert("url".to_string(), serde_json::to_value(HACK_REPO_REDIRECT)?);
             }
         }
     }

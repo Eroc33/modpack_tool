@@ -1,14 +1,16 @@
-#![allow(redundant_closure)]
+//#![allow(redundant_closure)]
 use download::{self, Downloadable, DownloadManager};
-use futures::{self, Future};
+use futures::future;
+use futures::prelude::*;
 use hash_writer::HashWriter;
+use hyper::Uri;
 use slog::Logger;
 use std::fs::{self, File};
+use std::io::Cursor;
 use std::io::prelude::*;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use url;
 use util;
 
 const CACHE_DIR: &'static str = "./mvn_cache/";
@@ -32,10 +34,8 @@ pub struct MavenArtifact {
 #[derive(Debug, Clone)]
 pub struct ResolvedArtifact {
     pub artifact: MavenArtifact,
-    pub repo: Url,
+    pub repo: Uri,
 }
-
-use hyper::Url;
 
 struct MavenCache;
 
@@ -51,19 +51,18 @@ impl MavenCache {
         let cached_path = Self::cached_path(&artifact.artifact);
         let log = log.new(o!("artifact"=>artifact.artifact.to_string(),"repo"=>artifact.repo.to_string(),"cached_path"=>cached_path.as_path().to_string_lossy().into_owned()));
         info!(log, "caching maven artifact");
-        if !Self::cached(&artifact.artifact) {
-            info!(log, "artifact is not cached, downloading now");
-            match artifact.url() {
-                Ok(url) => {
-                    manager.download(&url, cached_path.clone(), false, log)
-                        .map(move |_| cached_path)
-                        .boxed()
-                }
-                Err(e) => futures::failed(download::Error::from(e)).boxed(),
-            }
-        } else {
+        if Self::cached(&artifact.artifact) {
             info!(log, "artifact was already cached");
-            futures::finished(cached_path).boxed()
+            Box::new(future::ok(cached_path))
+        } else {
+            info!(log, "artifact is not cached, downloading now");
+            match artifact.uri() {
+                Ok(url) => {
+                    Box::new(manager.download(url, cached_path.clone(), false, log)
+                        .map(move |_| cached_path))
+                }
+                Err(e) => Box::new(future::err(download::Error::from(e))),
+            }
         }
     }
 
@@ -76,23 +75,34 @@ impl MavenCache {
 
     pub fn verify_cached(resolved: &ResolvedArtifact,
                          manager: DownloadManager)
-                         -> download::Result<VerifyResult> {
-        if !Self::cached(&resolved.artifact) {
-            Ok(VerifyResult::NotInCache)
-        } else {
+                         -> download::BoxFuture<VerifyResult> {
+        if Self::cached(&resolved.artifact) {
             let cached_path = Self::cached_path(&resolved.artifact);
-            let mut cached_file = File::open(cached_path)?;
-            let mut sha = HashWriter::new();
-            ::std::io::copy(&mut cached_file, &mut sha)?;
-            let cached_sha = sha.digest();
-            let mut res = manager.get(resolved.sha_url()?).send()?;
-            let mut res_str = String::new();
-            res.read_to_string(&mut res_str)?;
-            if res_str == format!("{}", cached_sha) {
-                Ok(VerifyResult::Good)
-            } else {
-                Ok(VerifyResult::Bad)
-            }
+            let sha_url_res = resolved.sha_uri();
+            Box::new(async_block!{
+                let mut cached_file = File::open(cached_path)?;
+
+                let mut sha = HashWriter::new();
+                ::std::io::copy(&mut cached_file, &mut sha)?;
+                let cached_sha = sha.digest();
+
+                let sha_uri = sha_url_res?;
+                let (res,_) = await!(manager.get(sha_uri)?)?;
+                let hash_str = await!(res.body()
+                    .map_err(download::Error::from)
+                    .fold(String::new(),
+                            |mut buf, chunk| -> Result<String, download::Error> {
+                                Cursor::new(chunk).read_to_string(&mut buf)?;
+                                Ok(buf)
+                            }))?;
+                if hash_str == format!("{}", cached_sha) {
+                    Ok(VerifyResult::Good)
+                } else {
+                    Ok(VerifyResult::Bad)
+                }
+            })
+        } else {
+            Box::new(future::ok(VerifyResult::NotInCache)) as download::BoxFuture<VerifyResult>
         }
     }
 
@@ -101,7 +111,7 @@ impl MavenCache {
                                     mut location: PathBuf,
                                     manager: DownloadManager,
                                     log: Logger)
-                                    -> impl ::download::Future<()> + 'a{
+                                    -> impl Future<Item = (), Error = ::download::Error> + 'a {
         Self::with(&artifact, manager, log.clone()).and_then(move |cached_path| {
             let ResolvedArtifact { artifact, repo } = artifact;
             let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
@@ -110,9 +120,9 @@ impl MavenCache {
             let mut artifact_no_classifier = artifact.clone();
             artifact_no_classifier.classifier = None;
             let cached_path_no_classifier = Self::cached_path(&artifact_no_classifier);
-            
+
             fs::create_dir_all(location.to_owned())?;
-            
+
             cached_path_no_classifier.file_name().map(|n| location.push(n));
             util::symlink(cached_path, location, &log)?;
             Ok(())
@@ -123,14 +133,14 @@ impl MavenCache {
                       mut location: PathBuf,
                       manager: DownloadManager,
                       log: Logger)
-                      -> impl ::download::Future<()> + 'a{
+                      -> impl Future<Item = (), Error = ::download::Error> + 'a {
         Self::with(&artifact, manager, log.clone()).and_then(move |cached_path| {
             let ResolvedArtifact { artifact, repo } = artifact;
             let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
             info!(log, "installing maven artifact");
 
             fs::create_dir_all(location.to_owned())?;
-            
+
             cached_path.file_name().map(|n| location.push(n));
             util::symlink(cached_path, location, &log)?;
             Ok(())
@@ -148,9 +158,11 @@ impl MavenArtifact {
         p.into()
     }
 
-    pub fn get_url_on(&self, base: &Url) -> ::std::result::Result<Url, url::ParseError> {
+    pub fn get_uri_on(&self, base: &Uri) -> ::download::Result<Uri> {
+        let base = ::util::uri_to_url(base)?;
         let path = self.to_path();
-        base.join(path.to_str().expect("non unicode path encountered"))
+        let url = base.join(path.to_str().expect("non unicode path encountered"))?;
+        ::util::url_to_uri(&url)
     }
 
     fn group_path(&self) -> PathBuf {
@@ -173,20 +185,20 @@ impl MavenArtifact {
                 extension = extension_fmt)
     }
 
-    pub fn resolve(&self, repo_url: Url) -> ResolvedArtifact {
+    pub fn resolve(&self, repo_uri: Uri) -> ResolvedArtifact {
         ResolvedArtifact {
             artifact: self.clone(),
-            repo: repo_url,
+            repo: repo_uri,
         }
     }
 
     pub fn download_from<'a>(&self,
                              location: &Path,
-                             repo_url: Url,
+                             repo_uri: Uri,
                              manager: DownloadManager,
                              log: Logger)
-                             -> impl ::download::Future<()> + 'a {
-        MavenCache::install_at(self.resolve(repo_url), location.to_owned(), manager, log)
+                             -> impl Future<Item = (), Error = ::download::Error> + 'a {
+        MavenCache::install_at(self.resolve(repo_uri), location.to_owned(), manager, log)
     }
 }
 
@@ -194,38 +206,39 @@ impl ResolvedArtifact {
     pub fn to_path(&self) -> PathBuf {
         self.artifact.to_path()
     }
-    pub fn url(&self) -> ::std::result::Result<Url, url::ParseError> {
-        self.artifact.get_url_on(&self.repo)
+    pub fn uri(&self) -> ::download::Result<Uri> {
+        self.artifact.get_uri_on(&self.repo)
     }
-    pub fn sha_url(&self) -> ::std::result::Result<Url, url::ParseError> {
-        let mut url = self.url()?;
+    pub fn sha_uri(&self) -> ::download::Result<Uri> {
+        let mut url = ::util::uri_to_url(&self.uri()?)?;
         let mut path = url.path().to_owned();
         path.push_str(".sha1");
         url.set_path(path.as_ref());
-        Ok(url)
+        ::util::url_to_uri(&url)
     }
     pub fn install_at(&self,
                       location: &Path,
                       manager: DownloadManager,
                       log: Logger)
                       -> download::BoxFuture<()> {
-        MavenCache::install_at((*self).clone(), location.to_owned(), manager, log).boxed()
+        Box::new(MavenCache::install_at((*self).clone(), location.to_owned(), manager, log))
     }
     pub fn reader(&self,
                   manager: DownloadManager,
                   log: Logger)
                   -> download::BoxFuture<::std::fs::File> {
-        MavenCache::with(self, manager, log)
-            .and_then(move |path| Ok(::std::fs::File::open(path)?))
-            .boxed()
+        Box::new(MavenCache::with(self, manager, log)
+            .and_then(move |path| Ok(::std::fs::File::open(path)?)))
     }
     pub fn install_at_no_classifier(&self,
                                     location: &Path,
                                     manager: DownloadManager,
                                     log: Logger)
                                     -> download::BoxFuture<()> {
-        MavenCache::install_at_no_classifier((*self).clone(), location.to_owned(), manager, log)
-            .boxed()
+        Box::new(MavenCache::install_at_no_classifier((*self).clone(),
+                                                      location.to_owned(),
+                                                      manager,
+                                                      log))
     }
 }
 
@@ -235,7 +248,7 @@ impl Downloadable for ResolvedArtifact {
                 manager: DownloadManager,
                 log: Logger)
                 -> download::BoxFuture<()> {
-        MavenCache::install_at(self, location, manager, log).boxed()
+        Box::new(MavenCache::install_at(self, location, manager, log))
     }
 }
 
@@ -272,7 +285,7 @@ impl FromStr for MavenArtifact {
             [s, ext] => (s, Some(ext.to_string())),
             _ => (s, None),
         };
-    
+
         let parts = s.split(':');
         let parts: Vec<&str> = parts.into_iter().collect();
         match *parts.as_slice() {
@@ -300,50 +313,50 @@ impl FromStr for MavenArtifact {
 }
 
 #[cfg(test)]
-mod test{
+mod test {
     use super::MavenArtifact;
     #[test]
-    fn parses_simple(){
+    fn parses_simple() {
         assert_eq!("net.minecraftforge.forge:some-jar:some-version".parse(),
-            Ok(MavenArtifact {
-                group: "net.minecraftforge.forge".into(),
-                artifact: "some-jar".into(),
-                version: "some-version".into(),
-                classifier: None,
-                extension: None
-            }))
+                   Ok(MavenArtifact {
+                       group: "net.minecraftforge.forge".into(),
+                       artifact: "some-jar".into(),
+                       version: "some-version".into(),
+                       classifier: None,
+                       extension: None,
+                   }))
     }
     #[test]
-    fn parses_with_ext(){
+    fn parses_with_ext() {
         assert_eq!("net.minecraftforge.forge:some-jar:some-version@zip".parse(),
-            Ok(MavenArtifact {
-                group: "net.minecraftforge.forge".into(),
-                artifact: "some-jar".into(),
-                version: "some-version".into(),
-                classifier: None,
-                extension: Some("zip".into())
-            }))
+                   Ok(MavenArtifact {
+                       group: "net.minecraftforge.forge".into(),
+                       artifact: "some-jar".into(),
+                       version: "some-version".into(),
+                       classifier: None,
+                       extension: Some("zip".into()),
+                   }))
     }
     #[test]
-    fn parses_with_classifier(){
+    fn parses_with_classifier() {
         assert_eq!("net.minecraftforge.forge:some-jar:some-version:universal".parse(),
-            Ok(MavenArtifact {
-                group: "net.minecraftforge.forge".into(),
-                artifact: "some-jar".into(),
-                version: "some-version".into(),
-                classifier: Some("universal".into()),
-                extension: None
-            }))
+                   Ok(MavenArtifact {
+                       group: "net.minecraftforge.forge".into(),
+                       artifact: "some-jar".into(),
+                       version: "some-version".into(),
+                       classifier: Some("universal".into()),
+                       extension: None,
+                   }))
     }
     #[test]
-    fn parses_with_ext_and_classifier(){
+    fn parses_with_ext_and_classifier() {
         assert_eq!("net.minecraftforge.forge:some-jar:some-version:universal@zip".parse(),
-            Ok(MavenArtifact {
-                group: "net.minecraftforge.forge".into(),
-                artifact: "some-jar".into(),
-                version: "some-version".into(),
-                classifier: Some("universal".into()),
-                extension: Some("zip".into())
-            }))
+                   Ok(MavenArtifact {
+                       group: "net.minecraftforge.forge".into(),
+                       artifact: "some-jar".into(),
+                       version: "some-version".into(),
+                       classifier: Some("universal".into()),
+                       extension: Some("zip".into()),
+                   }))
     }
 }

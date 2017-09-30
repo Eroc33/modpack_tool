@@ -1,21 +1,79 @@
+use cache::Cache;
+use curseforge;
 use download::{self, DownloadManager, Downloadable};
 use forge_version;
-use futures::{self, Future};
-
+use futures::prelude::*;
+use hyper::Uri;
 use maven::{MavenArtifact, ResolvedArtifact};
 use slog::Logger;
+use std::io::{Read, Cursor};
 use std::path::PathBuf;
-use url::{self, Url};
-use curseforge;
-use cache::Cache;
+use tokio_core::reactor::Handle;
+use semver;
+
+#[derive(Debug,PartialEq,Eq,Clone,Copy,Serialize, Deserialize)]
+pub enum ReleaseStatus {
+    Release,
+    Beta,
+    Alpha,
+}
+
+#[derive(Debug)]
+pub struct UnknownVariant(String);
+
+impl ReleaseStatus {
+    pub fn value(&self) -> &'static str {
+        match *self {
+            ReleaseStatus::Release => "Release",
+            ReleaseStatus::Beta => "Beta",
+            ReleaseStatus::Alpha => "Alpha",
+        }
+    }
+
+    pub fn accepts(&self, other: &ReleaseStatus) -> bool {
+        other == self ||
+        match *self {
+            ReleaseStatus::Release => false,
+            ReleaseStatus::Beta => ReleaseStatus::Release.accepts(other),
+            ReleaseStatus::Alpha => ReleaseStatus::Beta.accepts(other),
+        }
+    }
+}
+
+impl FromStr for ReleaseStatus {
+    type Err = UnknownVariant;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Release" => Ok(ReleaseStatus::Release),
+            "Beta" => Ok(ReleaseStatus::Beta),
+            "Alpha" => Ok(ReleaseStatus::Alpha),
+            s => Err(UnknownVariant(s.to_string())),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug,Clone)]
 pub enum ModSource {
-    CurseforgeMod (curseforge::Mod),
-    MavenMod{
+    CurseforgeMod(curseforge::Mod),
+    MavenMod {
         repo: String,
         artifact: MavenArtifact,
     },
+}
+
+impl ModSource{
+    pub fn identifier_string(&self) -> String{
+        match self{
+            &ModSource::CurseforgeMod(ref modd) => modd.id.clone(),
+            &ModSource::MavenMod{ref artifact,..} => artifact.to_string(),
+        }
+    }
+    pub fn guess_project_url(&self) -> Option<String>{
+        match self{
+            &ModSource::CurseforgeMod(ref modd) => modd.project_uri().map(|uri| uri.to_string()).ok(),
+            &ModSource::MavenMod{ref artifact,..} => None,
+        }
+    }
 }
 
 impl Downloadable for ModSource {
@@ -25,17 +83,14 @@ impl Downloadable for ModSource {
                 log: Logger)
                 -> download::BoxFuture<()> {
         match self {
-            ModSource::CurseforgeMod ( modd ) => {
-                curseforge::Cache::install_at(modd,location,manager,log)
+            ModSource::CurseforgeMod(modd) => {
+                curseforge::Cache::install_at(modd, location, manager, log)
             }
             ModSource::MavenMod { repo, artifact } => {
-                futures::lazy(move || {
-                        Url::from_str(repo.as_str()).map_err(download::Error::from)
-                    })
-                    .and_then(move |repo| {
-                        artifact.download_from(location.as_ref(), repo, manager, log)
-                    })
-                    .boxed()
+                Box::new(async_block!{
+                        let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
+                        Ok(await!(artifact.download_from(location.as_ref(), repo, manager, log))?)
+                })
             }
         }
     }
@@ -131,37 +186,34 @@ impl Downloadable for MCLibraryListing {
                 manager: DownloadManager,
                 log: Logger)
                 -> download::BoxFuture<()> {
-        futures::lazy(move || {
-                if !self.is_native() {
-                    let artifact = self.name.parse::<MavenArtifact>().unwrap();
-                    let base = Url::from_str(MC_LIBS_MAVEN)?;
-                    Ok(Some(artifact.resolve(base)))
+        Box::new(async_block!{
+            let resolved_artifact = if self.is_native() {
+                let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
+                let disallowed = if let Some(ref rules) = self.rules {
+                    rules.into_iter()
+                        .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
                 } else {
-                    let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
-                    let disallowed = if let Some(ref rules) = self.rules {
-                        rules.into_iter()
-                            .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
-                    } else {
-                        false
-                    };
-                    if disallowed {
-                        Ok(None)//nothing to download
-                    } else {
-                        artifact.classifier = self.platform_native_classifier();
-                        let base = Url::from_str(MC_LIBS_MAVEN)?;
-                        Ok(Some(artifact.resolve(base)))
-                    }
-                }
-            })
-            .and_then(move |resolved_artifact| {
-                if let Some(resolved_artifact) = resolved_artifact {
-                    location.push(resolved_artifact.to_path());
-                    resolved_artifact.download(location, manager, log)
+                    false
+                };
+                if disallowed {
+                    None //nothing to download
                 } else {
-                    futures::finished(()).boxed()
+                    artifact.classifier = self.platform_native_classifier();
+                    let base = Uri::from_str(MC_LIBS_MAVEN)?;
+                    Some(artifact.resolve(base))
                 }
-            })
-            .boxed()
+            } else {
+                let artifact = self.name.parse::<MavenArtifact>().unwrap();
+                let base = Uri::from_str(MC_LIBS_MAVEN)?;
+                Some(artifact.resolve(base))
+            };
+            if let Some(resolved_artifact) = resolved_artifact {
+                location.push(resolved_artifact.to_path());
+                Ok(await!(resolved_artifact.download(location, manager, log))?)
+            } else {
+                Ok(())
+            }
+        })
     }
 }
 
@@ -191,23 +243,35 @@ use std::string::String;
 pub type ModList = Vec<ModSource>;
 
 impl MCVersionInfo {
-    pub fn version(ver: &str) -> serde_json::Result<MCVersionInfo> {
-        let client = hyper::Client::new();
-        let url = Url::from_str(format!("http://s3.amazonaws.com/Minecraft.\
+    pub fn version(handle: &Handle, ver: &str) -> ::BoxFuture<MCVersionInfo> {
+        let client = hyper::Client::new(handle);
+        let uri = Uri::from_str(format!("http://s3.amazonaws.com/Minecraft.\
                                          Download/versions/{0}/{0}.json",
                                         ver)
                 .as_str())
             .unwrap();
-        let res = client.get(url).send().unwrap();
-        serde_json::de::from_reader(res)
+        Box::new(client.get(uri)
+            .and_then(|res| {
+                res.body()
+                    .fold(vec![], |mut buf, chunk| -> Result<Vec<u8>, hyper::Error> {
+                        Cursor::new(chunk).read_to_end(&mut buf)?;
+                        Ok(buf)
+                    })
+            })
+            .map_err(::Error::from)
+            .and_then(|buf| {
+                let info: MCVersionInfo = serde_json::de::from_reader(Cursor::new(buf))?;
+                Ok(info)
+            })) as ::BoxFuture<MCVersionInfo>
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackConfig {
-    pub version: String,
+    pub version: semver::VersionReq,
     pub name: String,
     pub forge: String,
+    pub auto_update_release_status: Option<ReleaseStatus>,
     pub mods: ModList,
 }
 
@@ -215,7 +279,7 @@ impl ModpackConfig {
     pub fn folder(&self) -> String {
         self.name.replace(|c: char| !c.is_alphanumeric(), "_")
     }
-    pub fn forge_maven_artifact(&self) -> Result<ResolvedArtifact, url::ParseError> {
+    pub fn forge_maven_artifact(&self) -> Result<ResolvedArtifact, hyper::error::UriError> {
         Ok(MavenArtifact {
                 group: "net.minecraftforge".into(),
                 artifact: "forge".into(),
@@ -223,6 +287,33 @@ impl ModpackConfig {
                 classifier: Some("universal".into()),
                 extension: Some("jar".into()),
             }
-            .resolve(Url::from_str(forge_version::BASE_URL)?))
+            .resolve(Uri::from_str(forge_version::BASE_URL)?))
+    }
+    pub fn replace_mod(&mut self, modsource: ModSource) {
+        match modsource {
+            ModSource::CurseforgeMod(curseforge::Mod { ref id, .. }) => {
+                let new_id = id;
+                let mut old_mods = vec![];
+                ::std::mem::swap(&mut self.mods, &mut old_mods);
+                self.mods = old_mods.into_iter()
+                    .filter(|source| match *source {
+                        ModSource::CurseforgeMod(curseforge::Mod { ref id, ref version }) => {
+                            if id == new_id {
+                                println!("removing old version ({})", version);
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                        _ => true,
+                    })
+                    .collect();
+            }
+            _ => panic!("Other mod sources not yet supported"),
+        }
+
+        println!("Adding: {:?}", modsource);
+
+        self.mods.push(modsource);
     }
 }

@@ -1,30 +1,53 @@
 [package]
+authors = ["Euan Rochester <euan@rochester.me.uk>"]
 name = "modpack_tool"
 version = "0.1.0"
-authors = ["Euan Rochester <euan@rochester.me.uk>"]
 
 [dependencies]
-serde = "*"
-serde_json = "*"
-serde_derive = "*"
-hyper = "*"
-url = "*"
-env_logger = "*"
+clap = "2.24"
+env_logger = "0.4"
+error-chain = "0.11"
+html5ever = "0.20.0"
+hyper = "0.11.2"
+hyper-tls = "0.1.2"
+kuchiki = "0.6"
+lazy_static = "0.2.9"
 log = "*"
-rustc-serialize = "*"
-clap = "*"
-error-chain = "*"
+regex = "0.2.2"
+selectors = "0.18.0"
+serde = "*"
+serde_derive = "*"
+serde_json = "*"
 sha1 = "*"
-zip = "*"
-time = "*"
 slog = "*"
-slog-stdlog = "*"
-slog-term = "*"
 slog-json = "*"
+slog-stdlog = "*"
 slog-stream = "*"
-futures = "0.1"
+slog-term = "*"
+termcolor = "0.3.3"
+time = "*"
+tokio-core = "0.1"
+url = "1.4"
+zip = "0.2"
+
+[dependencies.futures-await]
+git = "https://github.com/alexcrichton/futures-await"
 
 [dependencies.scan-rules]
-version = "*"
-features = ["nightly-pattern"]
+features = ["nightly-pattern", "regex"]
+git = "https://github.com/DanielKeep/rust-scan-rules"
 
+[dependencies.semver]
+features = ["serde"]
+version = "0.8.0"
+
+[profile]
+
+[profile.release]
+codegen-units = 1
+debug = false
+debug-assertions = false
+lto = true
+opt-level = 3
+panic = "unwind"
+rpath = false

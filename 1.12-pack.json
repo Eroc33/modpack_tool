@@ -1,0 +1,32 @@
+{
+  "version": "1.12.1",
+  "name": "Euan's 1.12.1 pack",
+  "forge": "1.12-14.21.1.2387",
+  "auto_update_release_status": "Beta",
+  "mods": [
+    {
+      "CurseforgeMod": {
+        "id": "tinkers-construct",
+        "version": 2464452
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "just-enough-items-jei",
+        "version": 2462245
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "tinkers-tool-leveling",
+        "version": 2474358
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "mantle",
+        "version": 2474052
+      }
+    }
+  ]
+}

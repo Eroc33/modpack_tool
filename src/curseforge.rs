@@ -1,18 +1,26 @@
-use url::{self,Url};
-use std::str::FromStr;
+use hyper::{self, Uri};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 const CACHE_DIR: &'static str = "./curse_cache/";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mod {
     pub id: String,
-    pub version: i64
+    pub version: u64,
 }
 
 pub type Cache = ::cache::FolderCache;
 
-impl ::cache::Cacheable for Mod{
+impl Mod{
+    pub fn project_uri(&self) -> Result<Uri, hyper::error::UriError> {
+        let loc = format!("http://minecraft.curseforge.com/projects/{}/",
+                          self.id);
+        Ok(Uri::from_str(&loc)?)
+    }
+}
+
+impl ::cache::Cacheable for Mod {
     fn cached_path(&self) -> PathBuf {
         let mut p = PathBuf::new();
         p.push(CACHE_DIR);
@@ -20,17 +28,16 @@ impl ::cache::Cacheable for Mod{
         p.push(self.version.to_string());
         p
     }
-    fn url(&self) -> Result<Url, url::ParseError>
-    {
-        let path = [self.id.as_str(), "files", self.version.to_string().as_str(), "download"]
-            .join("/");
-        let base = Url::from_str("http://minecraft.curseforge.com/projects/");
-        base.and_then(|url| url.join(path.as_str()))
+
+    fn uri(&self) -> Result<Uri, hyper::error::UriError> {
+        let loc = format!("http://minecraft.curseforge.com/projects/{}/files/{}/download",
+                          self.id,
+                          self.version.to_string());
+        Ok(Uri::from_str(&loc)?)
     }
 }
-impl Into<::types::ModSource> for Mod{
-    fn into(self) -> ::types::ModSource
-    {
+impl Into<::types::ModSource> for Mod {
+    fn into(self) -> ::types::ModSource {
         ::types::ModSource::CurseforgeMod(self)
     }
 }

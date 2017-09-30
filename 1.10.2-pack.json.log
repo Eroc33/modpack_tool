@@ -1,0 +1,118 @@
+{"ts":"2017-02-04T20:55:34.939103900+00:00","level":"INFO","msg":"loading pack config"}
+{"ts":"2017-02-04T20:55:34.990111700+00:00","level":"INFO","msg":"caching maven artifact","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.10.2-12.18.2.2166\\forge-1.10.2-12.18.2.2166-universal.jar","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:34.990610300+00:00","level":"INFO","msg":"artifact was already cached","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.10.2-12.18.2.2166\\forge-1.10.2-12.18.2.2166-universal.jar","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:34.991610800+00:00","level":"DEBG","msg":"Opening forge jar","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.197637900+00:00","level":"DEBG","msg":"Reading version json","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.205139500+00:00","level":"DEBG","msg":"creating profile folder","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.205139500+00:00","level":"DEBG","msg":"saving version json to minecraft install loc","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.208139200+00:00","level":"DEBG","msg":"Applying version json hacks","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.235641900+00:00","level":"INFO","msg":"caching maven artifact","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.10.2-12.18.2.2166\\forge-1.10.2-12.18.2.2166-universal.jar","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.236642+00:00","level":"INFO","msg":"artifact was already cached","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.10.2-12.18.2.2166\\forge-1.10.2-12.18.2.2166-universal.jar","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.237141800+00:00","level":"INFO","msg":"installing maven artifact","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.237642800+00:00","level":"INFO","msg":"symlinking \"./mvn_cache/net\\\\minecraftforge\\\\forge\\\\1.10.2-12.18.2.2166\\\\forge-1.10.2-12.18.2.2166-universal.jar\" to \"C:\\\\Users\\\\euan\\\\AppData\\\\Roaming\\\\.minecraft\\\\libraries\\\\net\\\\minecraftforge\\\\forge\\\\1.10.2-12.18.2.2166\\\\forge-1.10.2-12.18.2.2166.jar\"","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.238142+00:00","level":"WARN","msg":"Symlink permission denied, falling back to copy","artifact":"net.minecraftforge:forge:1.10.2-12.18.2.2166:universal@jar","repo":"http://files.minecraftforge.net/maven/","stage":"install_forge"}
+{"ts":"2017-02-04T20:55:35.266646300+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/autoreglib\\2327403","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.267645900+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/waila\\2301859","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.268145700+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/veinminer\\2314335","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.268647+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/chisel\\2339874","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.269646600+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/mcjtylib\\2337887","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.270146400+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/mcmultipart\\2340729","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.271146200+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/opencomputers\\2344182","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.272150800+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/rftools-control\\2342593","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.273146600+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/super-circuit-maker\\2343952","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.273647300+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/chameleon\\2349653","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.274147100+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/psi\\2347126","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.275146700+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/extra-utilities\\2349711","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.275647600+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/morpheus\\2346198","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.276147200+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/botania\\2347211","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.276648100+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/journeymap-32274\\2350029","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.277647700+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/endercore\\2346434","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.278647900+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/ender-io\\2350383","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.279148300+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/quark\\2347277","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.280147900+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/deep-resonance\\2346727","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.280648300+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/rftools\\2346481","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.281147800+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/eleccore-rendering-library\\2346737","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.281647900+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/baubles\\2350499","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.282147700+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/mystical-agriculture\\2349448","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.282648+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/storage-drawers\\2350060","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.283147500+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/refined-storage\\2350970","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.283648500+00:00","level":"INFO","msg":"item was already cached","cached_path":"./curse_cache/just-enough-items-jei\\2349441","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.284651300+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.285148500+00:00","level":"INFO","msg":"symlinking \"./curse_cache/autoreglib\\\\2327403\\\\AutoRegLib-1.0-2.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\AutoRegLib-1.0-2.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.285148500+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.286649300+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.287648700+00:00","level":"INFO","msg":"symlinking \"./curse_cache/waila\\\\2301859\\\\Waila-1.7.0-B3_1.9.4.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Waila-1.7.0-B3_1.9.4.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.287648700+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.289649600+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.290148800+00:00","level":"INFO","msg":"symlinking \"./curse_cache/veinminer\\\\2314335\\\\VeinMiner-0.34.1-1.9r571+73be663.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\VeinMiner-0.34.1-1.9r571+73be663.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.290148800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.291650500+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.292149200+00:00","level":"INFO","msg":"symlinking \"./curse_cache/chisel\\\\2339874\\\\Chisel-MC1.10.2-0.0.7.3.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Chisel-MC1.10.2-0.0.7.3.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.292650100+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.302650800+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.303150300+00:00","level":"INFO","msg":"symlinking \"./curse_cache/mcjtylib\\\\2337887\\\\mcjtylib-1.10-2.2.0.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\mcjtylib-1.10-2.2.0.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.303150300+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.305151+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.305650800+00:00","level":"INFO","msg":"symlinking \"./curse_cache/mcmultipart\\\\2340729\\\\MCMultiPart-1.3.0-universal.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\MCMultiPart-1.3.0-universal.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.305650800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.307150700+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.307651100+00:00","level":"INFO","msg":"symlinking \"./curse_cache/opencomputers\\\\2344182\\\\OpenComputers-MC1.10.2-1.6.0.4.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\OpenComputers-MC1.10.2-1.6.0.4.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.308150900+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.325656100+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.326153300+00:00","level":"INFO","msg":"symlinking \"./curse_cache/rftools-control\\\\2342593\\\\rftoolsctrl-1.10-1.5.2.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\rftoolsctrl-1.10-1.5.2.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.326153300+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.329153600+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.329654500+00:00","level":"INFO","msg":"symlinking \"./curse_cache/super-circuit-maker\\\\2343952\\\\SuperCircuitMaker-1.0.4.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\SuperCircuitMaker-1.0.4.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.330153700+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.332654500+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.333154300+00:00","level":"INFO","msg":"symlinking \"./curse_cache/chameleon\\\\2349653\\\\Chameleon-1.10-2.2.0.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Chameleon-1.10-2.2.0.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.333154300+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.334654300+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.335154900+00:00","level":"INFO","msg":"symlinking \"./curse_cache/psi\\\\2347126\\\\Psi-r1.0-42.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Psi-r1.0-42.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.335154900+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.339655200+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.340155500+00:00","level":"INFO","msg":"symlinking \"./curse_cache/extra-utilities\\\\2349711\\\\extrautils2-1.10.2-1.1.1.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\extrautils2-1.10.2-1.1.1.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.340155500+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.344657200+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.345156500+00:00","level":"INFO","msg":"symlinking \"./curse_cache/morpheus\\\\2346198\\\\Morpheus-1.10.2-3.1.12.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Morpheus-1.10.2-3.1.12.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.345656500+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.347155900+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.347656300+00:00","level":"INFO","msg":"symlinking \"./curse_cache/botania\\\\2347211\\\\Botania r1.9-339.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Botania r1.9-339.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.348156700+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.372660+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.373160900+00:00","level":"INFO","msg":"symlinking \"./curse_cache/journeymap-32274\\\\2350029\\\\journeymap-1.10.2-5.3.1.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\journeymap-1.10.2-5.3.1.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.373160900+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.379162600+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.379660700+00:00","level":"INFO","msg":"symlinking \"./curse_cache/endercore\\\\2346434\\\\EnderCore-1.10.2-0.4.1.60-beta.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\EnderCore-1.10.2-0.4.1.60-beta.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.380163400+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.382660900+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.383661100+00:00","level":"INFO","msg":"symlinking \"./curse_cache/ender-io\\\\2350383\\\\EnderIO-1.10.2-3.0.1.138_beta.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\EnderIO-1.10.2-3.0.1.138_beta.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.383661100+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.397663300+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.401663800+00:00","level":"INFO","msg":"symlinking \"./curse_cache/quark\\\\2347277\\\\Quark-r1.0-60.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Quark-r1.0-60.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.401663800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.414165200+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.415164800+00:00","level":"INFO","msg":"symlinking \"./curse_cache/deep-resonance\\\\2346727\\\\deepresonance-1.10-1.3.1.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\deepresonance-1.10-1.3.1.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.415164800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.418666+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.419165800+00:00","level":"INFO","msg":"symlinking \"./curse_cache/rftools\\\\2346481\\\\rftools-1.10-5.62.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\rftools-1.10-5.62.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.419165800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.423666300+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.424166100+00:00","level":"INFO","msg":"symlinking \"./curse_cache/eleccore-rendering-library\\\\2346737\\\\ElecCore-1.10.2-1.6.345.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\ElecCore-1.10.2-1.6.345.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.424666800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.426667100+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.427166100+00:00","level":"INFO","msg":"symlinking \"./curse_cache/baubles\\\\2350499\\\\Baubles-1.10.2-1.3.6.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\Baubles-1.10.2-1.3.6.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.427166100+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.432668500+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.433668700+00:00","level":"INFO","msg":"symlinking \"./curse_cache/mystical-agriculture\\\\2349448\\\\mysticalagriculture[1.10.2]-1.3.6.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\mysticalagriculture[1.10.2]-1.3.6.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.434167300+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.436668400+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.437167900+00:00","level":"INFO","msg":"symlinking \"./curse_cache/storage-drawers\\\\2350060\\\\StorageDrawers-1.10.2-3.5.5.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\StorageDrawers-1.10.2-3.5.5.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.437668+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.439669800+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.440168100+00:00","level":"INFO","msg":"symlinking \"./curse_cache/refined-storage\\\\2350970\\\\refinedstorage-1.2.8.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\refinedstorage-1.2.8.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.440668800+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.444168900+00:00","level":"INFO","msg":"installing item","stage":"download_modlist","location":".\\Euan_s_1_10_2_pack\\mods"}
+{"ts":"2017-02-04T20:55:35.444669200+00:00","level":"INFO","msg":"symlinking \"./curse_cache/just-enough-items-jei\\\\2349441\\\\jei_1.10.2-3.13.6.387.jar\" to \".\\\\Euan_s_1_10_2_pack\\\\mods\\\\jei_1.10.2-3.13.6.387.jar\"","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.444669200+00:00","level":"WARN","msg":"symlink permission denied, falling back to copy","stage":"download_modlist"}
+{"ts":"2017-02-04T20:55:35.453672+00:00","level":"INFO","msg":"done"}

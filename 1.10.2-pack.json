@@ -1,0 +1,164 @@
+{
+  "version": "1.10.2",
+  "name": "Euan's 1.10.2 pack",
+  "forge": "1.10.2-12.18.2.2166",
+  "auto_update_release_status": "Beta",
+  "mods": [
+    {
+      "CurseforgeMod": {
+        "id": "autoreglib",
+        "version": 2327403
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "waila",
+        "version": 2301859
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "chisel",
+        "version": 2339874
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "mcjtylib",
+        "version": 2337887
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "rftools-control",
+        "version": 2342593
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "super-circuit-maker",
+        "version": 2343952
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "psi",
+        "version": 2347126
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "deep-resonance",
+        "version": 2346727
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "rftools",
+        "version": 2346481
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "veinminer",
+        "version": 2361136
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "mcmultipart",
+        "version": 2381408
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "opencomputers",
+        "version": 2385987
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "chameleon",
+        "version": 2419174
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "extra-utilities",
+        "version": 2430081
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "morpheus",
+        "version": 2358274
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "botania",
+        "version": 2391169
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "journeymap",
+        "version": 2383110
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "endercore",
+        "version": 2415996
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "ender-io",
+        "version": 2429916
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "quark",
+        "version": 2363413
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "eleccore-rendering-library",
+        "version": 2425223
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "baubles",
+        "version": 2424565
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "mystical-agriculture",
+        "version": 2431492
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "storage-drawers",
+        "version": 2432003
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "refined-storage",
+        "version": 2431884
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "just-enough-items-jei",
+        "version": 2428966
+      }
+    }
+  ]
+}

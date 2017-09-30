@@ -1,77 +1,53 @@
 use download;
-use futures;
+use futures::future;
+use futures::prelude::*;
+
 use hyper;
-
+use hyper::Uri;
 use slog::Logger;
-use std::fs::{self, File};
-use std::io::{self, Read, copy};
+use std::fs::File;
+use std::io::{self, Read, Cursor};
 use std::path::{Path, PathBuf};
-use time;
-use url::{self, Url};
+use std::str::FromStr;
+use std::io::copy;
 
-pub fn save_file<R>(mut reader: R, path: &Path) -> io::Result<u64>
+use url::Url;
+
+pub fn uri_to_url(uri: &Uri) -> ::download::Result<Url> {
+    Ok(Url::from_str(uri.as_ref())?)
+}
+
+pub fn url_to_uri(url: &Url) -> ::download::Result<Uri> {
+    Ok(Uri::from_str(url.as_ref())?)
+}
+
+pub fn save_stream_to_file<S>(stream: S,
+                              path: PathBuf)
+                              -> impl Future<Item = (), Error = download::Error>
+    where S: Stream<Item = hyper::Chunk>,
+          S::Error: Into<download::Error>
+{
+    future::result(File::create(path))
+        .map_err(download::Error::from)
+        .and_then(move |file| {
+            stream.map_err(Into::into)
+                .fold(file, |mut file, chunk| -> Result<File, download::Error> {
+                    io::copy(&mut Cursor::new(chunk), &mut file)?;
+                    Ok(file)
+                })
+                .map(|_| ())
+        })
+}
+
+pub fn save_file<R>(mut reader: R, path: &Path) -> impl Future<Item = u64, Error = io::Error>
     where R: Read
 {
-    let mut file = File::create(path)?;
-    copy(&mut reader, &mut file)
+    future::result(File::create(path)).and_then(move |mut file| copy(&mut reader, &mut file))
 }
 
-fn epoch_tm() -> time::Tm {
-    time::at_utc(time::Timespec { sec: 0, nsec: 0 })
-}
-
-pub fn download_with(url: &Url,
-                     path: PathBuf,
-                     append_filename: bool,
-                     client: &hyper::Client,
-                     log: Logger)
-                     -> impl ::download::Future<()> {
-    futures::done(_download_with(url, path, append_filename, client, log))
-}
-
-
-pub fn _download_with(url: &Url,
-                      mut path: PathBuf,
-                      append_filename: bool,
-                      client: &hyper::Client,
-                      log: Logger)
-                      -> download::Result<()> {
-    let log = log.new(o!("url"=>url.to_string()));
-    info!(log, "Downloading");
-    fs::create_dir_all(path.clone())?;
-
-    let mut headers = hyper::header::Headers::new();
-
-    headers.set(hyper::header::UserAgent("CorrosiveModpackTool/0.0.1".into()));
-
-    // FIXME find a way to workout which mod file is which *before* downloading
-    if path.exists() && path.is_file() {
-        let metadata = path.metadata()?;
-        let duration = metadata.modified()?.duration_since(::std::time::UNIX_EPOCH)?;
-        let duration = time::Duration::from_std(duration)?;
-        let timestamp = epoch_tm() + duration;
-        headers.set(hyper::header::IfModifiedSince(hyper::header::HttpDate(timestamp)));
-    }
-    let res = client.get(url.clone()).headers(headers).send()?;
-    if res.status == hyper::status::StatusCode::NotModified {
-        info!(log, "not modified, skipping {:?}", path);
-        return Ok(());
-    }
-
-    {
-        let filename = match res.url.path_segments() {
-            Some(parts) => {
-                url::percent_encoding::percent_decode(parts.last().unwrap().as_bytes())
-                    .decode_utf8_lossy()
-            }
-            None => unreachable!("Couldn't retrive filename as url was not relative"),
-        };
-        if append_filename {
-            path.push(filename.into_owned());
-        }
-    }
-    info!(log,"downloaded as"; "path"=>path.as_path().to_string_lossy().into_owned());
-    Ok(save_file(res, path.as_path()).map(|_| ())?)
+pub fn file_timestamp<P: AsRef<Path>>(path: P) -> download::Result<::std::time::SystemTime> {
+    let metadata = path.as_ref().metadata()?;
+    Ok(metadata.modified()?)
 }
 
 use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};

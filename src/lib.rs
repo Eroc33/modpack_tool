@@ -1,26 +1,24 @@
-// this allow can be removed after error_chain 0.5.1 or greater is released
-#![allow(redundant_closure)]
-#![feature(custom_derive,custom_attribute,slice_patterns,conservative_impl_trait,proc_macro)]
+#![feature(custom_derive,slice_patterns,conservative_impl_trait,never_type,generators,proc_macro)]
 #![deny(clippy)]
 
 #[macro_use]
 extern crate serde_derive;
-extern crate rustc_serialize;
-extern crate serde;
 extern crate serde_json;
 extern crate hyper;
+extern crate hyper_tls;
 extern crate url;
 extern crate sha1;
-#[macro_use]
 extern crate clap;
 #[macro_use]
 extern crate error_chain;
+extern crate tokio_core;
+extern crate semver;
 
 #[macro_use]
 extern crate slog;
 extern crate time;
 extern crate zip;
-extern crate futures;
+extern crate futures_await as futures;
 
 pub mod cache;
 pub mod curseforge;
@@ -36,18 +34,30 @@ pub use download::Downloadable;
 
 pub use types::*;
 
+#[macro_export]
+macro_rules! die{
+    ($($items:expr),+) => {{
+        eprintln!($($items),+);
+        std::process::exit(1)
+    }}
+}
+
 error_chain! {
     links {
-        download::Error, download::ErrorKind, Download;
+        Download(download::Error, download::ErrorKind);
     }
     foreign_links{
-        ::std::io::Error, Io;
-        url::ParseError, Url;
-        hyper::Error, Hyper;
-        zip::result::ZipError,Zip;
-        serde_json::error::Error, Json;
+        Io(::std::io::Error);
+        Uri(hyper::error::UriError);
+        Hyper(hyper::Error);
+        Zip(zip::result::ZipError);
+        Json(serde_json::error::Error);
     }
     errors {
+        Selector{
+            description("couldn't compile selector")
+            display("couldn't compile selector")
+        }
         UnknownScheme(t: String) {
             description("unknown url scheme")
             display("unknown url scheme: '{}'", t)
@@ -55,4 +65,10 @@ error_chain! {
     }
 }
 
-pub type BoxFuture<I> = futures::BoxFuture<I, Error>;
+impl From<!> for Error{
+    fn from(never:!)->Self{
+        never
+    }
+}
+
+pub type BoxFuture<I> = Box<futures::Future<Item = I, Error = Error>>;

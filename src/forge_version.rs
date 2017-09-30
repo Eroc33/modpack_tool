@@ -1,5 +1,3 @@
-use hyper;
-use serde_json;
 use std::collections::HashMap;
 
 pub const BASE_URL: &'static str = "http://files.minecraftforge.net/maven/";
@@ -45,8 +43,9 @@ impl File {
         &self.2
     }
 }
-
+/*
 pub fn get_version_list() -> serde_json::Result<ForgeVersionList> {
     let data = hyper::Client::new().get(JSON_URL).send().unwrap();
     serde_json::de::from_reader(data)
 }
+*/
