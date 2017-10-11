@@ -24,11 +24,17 @@ error_chain! {
     StdTimeError(::std::time::SystemTimeError);
   }
   errors{
+      MalformedRedirect{
+          description("Got a redirect without a location header.")
+      }
       HttpClientError{
           description("A http client error occurred. Please check your pack.json is valid")
       }
       HttpServerError{
           description("A http server error occurred. Please try again later")
+      }
+      CacheError{
+          description("There was a problem with the cache.")
       }
   }
 }
@@ -243,9 +249,8 @@ impl Future for RedirectFollower {
             (self.current_response.take(), self.current_location.take()) {
             if let Async::Ready(res) = current_response.poll()? {
                 match res.status() {
-                    hyper::StatusCode::Found => {
-                        //FIXME: remove this unwrap
-                        let next = res.headers().get::<header::Location>().take().unwrap();
+                    hyper::StatusCode::Found | hyper::StatusCode::MovedPermanently | hyper::StatusCode::TemporaryRedirect => {
+                        let next = res.headers().get::<header::Location>().take().ok_or_else(|| ErrorKind::MalformedRedirect)?;
                         let next_url = current_location.join(&*next)?;
                         let next = ::util::url_to_uri(&next_url)?;
                         let mut req = Request::new(self.method.clone(), next.clone());
@@ -259,13 +264,16 @@ impl Future for RedirectFollower {
                     status if status.is_server_error() => {
                         return Err(ErrorKind::HttpServerError.into());
                     }
-                    _ => return Ok(Async::Ready((res, current_location))),
+                    hyper::StatusCode::Ok => {
+                        return Ok(Async::Ready((res, current_location)))
+                    }
+                    other => panic!("Not sure what to do with the statuscode: {:?}. This is a bug.",other),
                 }
             } else {
                 (current_response, current_location)
             }
         } else {
-            panic!("Called after return")
+            panic!("RedirectFollower polled after return. This is a bug.")
         };
         self.current_response = Some(next_response);
         self.current_location = Some(next_location);
