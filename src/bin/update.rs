@@ -1,4 +1,4 @@
-#![feature(proc_macro,custom_derive, plugin,slice_patterns,generators)]
+#![feature(proc_macro,custom_derive, plugin,slice_patterns,generators, conservative_impl_trait)]
 #![deny(clippy)]
 
 #[macro_use]
@@ -15,12 +15,16 @@ extern crate slog_term;
 extern crate slog_json;
 extern crate zip;
 extern crate futures_await as futures;
+extern crate semver;
+#[macro_use]
+extern crate error_chain;
 
 use futures::prelude::*;
 use modpack_tool::{Result, BoxFuture};
 use modpack_tool::download::{Downloadable, DownloadManager};
 use modpack_tool::hacks;
 use modpack_tool::maven;
+use modpack_tool::upgrade;
 use modpack_tool::types::*;
 
 use slog::{Logger, Drain};
@@ -30,7 +34,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use tokio_core::reactor::Core;
+use tokio_core::reactor::{self,Core};
 
 fn load_pack<R>(reader: R) -> serde_json::Result<ModpackConfig>
     where R: Read
@@ -63,7 +67,7 @@ fn add_launcher_profile(pack_path: &PathBuf,
             .as_object_mut()
             .expect("profiles is not an object");
 
-        debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
+        //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
 
         match profiles.entry(pack_name.as_str()) {
             Entry::Occupied(mut occupied) => {
@@ -203,9 +207,7 @@ fn add(pack_path: &str, mod_url: &str){
     serde_json::ser::to_writer_pretty(&mut file, &pack).unwrap();
 }
 
-fn update(path: &str, log: Logger){
-    let mut core = Core::new().expect("Couldn't initialise tokio");
-    let handle = core.handle();
+fn update(path: &str, log: Logger, handle: &reactor::Handle) -> impl Future<Item=(),Error=modpack_tool::Error> +'static{
 
     let download_manager = DownloadManager::new(&handle);
 
@@ -213,28 +215,24 @@ fn update(path: &str, log: Logger){
 
     info!(log, "loading pack config");
     let post_log = log.clone();
-
-    let modpack = match std::fs::File::open(&path) {
-        Ok(file) => load_pack(file),
-        Err(_) => die!("Couldn't open {:?}", &path),
-    };
-    let mut pack_path = PathBuf::from(".");
-    let run_fn = match modpack {
-        Err(e) => die!("File error: {:?}",e),
-        Ok(pack) => async_block!{
-            let forge_maven_artifact = pack.forge_maven_artifact()?;
-            pack_path.push(pack.folder());
-            let ModpackConfig { name: pack_name, mods, .. } = pack;
-            let (id, _) = await!(install_forge(pack_path.clone(),
-                            forge_maven_artifact,
-                            download_manager.clone(),
-                            &log)
-                .join(download_modlist(pack_path.clone(), mods, download_manager.clone(), &log)))?;
-            return add_launcher_profile(&pack_path, pack_name, &id, &log);
-        },
-    };
-    core.run(run_fn).unwrap();
-    info!(post_log, "done");
+    let path = path.to_owned();
+    async_block!{
+        let file = std::fs::File::open(path)?;
+        let modpack = load_pack(file); 
+        let mut pack_path = PathBuf::from(".");
+        let pack = modpack?;
+        let forge_maven_artifact = pack.forge_maven_artifact()?;
+        pack_path.push(pack.folder());
+        let ModpackConfig { name: pack_name, mods, .. } = pack;
+        let (id, _) = await!(install_forge(pack_path.clone(),
+                        forge_maven_artifact,
+                        download_manager.clone(),
+                        &log)
+            .join(download_modlist(pack_path.clone(), mods, download_manager.clone(), &log)))?;
+        let ret = add_launcher_profile(&pack_path, pack_name, &id, &log)?;
+        info!(post_log,"Done");
+        return Ok(ret);
+    }
 }
 
 fn build_cli() -> clap::App<'static,'static>{
@@ -250,7 +248,7 @@ fn build_cli() -> clap::App<'static,'static>{
                 .index(1)
                 .help("The metadata json file for the pack you wish to update"))
             ,
-            clap::SubCommand::with_name("add_mod")
+            clap::SubCommand::with_name("add")
             .about("Adds a mod to the provided pack file")
             .arg(clap::Arg::with_name("pack_file")
                 .required(true)
@@ -261,52 +259,130 @@ fn build_cli() -> clap::App<'static,'static>{
                 .index(2)
                 .help("The url for the mod you wish to add"))
             ,
-            clap::SubCommand::with_name("try_upgrade")
-            .about("Checks if upgrade compatibility for this pack from one minecraft version to the next.")
-            .arg(clap::Arg::with_name("pack_file")
-                .required(true)
-                .index(1)
-                .help("The metadata json file for the pack you wish to modify"))
-            .arg(clap::Arg::with_name("mc_version")
-                .required(true)
-                .index(2)
-                .help("The minecraft version to upgrade to"))
+            clap::SubCommand::with_name("dev")
+            .about("Commands for modpack developers")
+            .subcommands(vec![
+                clap::SubCommand::with_name("try_upgrade")
+                .about("Checks upgrade compatibility for this pack from one minecraft version to the next.")
+                .arg(clap::Arg::with_name("pack_file")
+                    .required(true)
+                    .index(1)
+                    .help("The metadata json file for the pack you wish to modify"))
+                .arg(clap::Arg::with_name("mc_version")
+                    .required(true)
+                    .index(2)
+                    .help("The minecraft version to upgrade to"))
+                ,
+                clap::SubCommand::with_name("do_upgrade")
+                .about("Upgrades this pack from one minecraft version to the next.")
+                .arg(clap::Arg::with_name("pack_file")
+                    .required(true)
+                    .index(1)
+                    .help("The metadata json file for the pack you wish to modify"))
+                .arg(clap::Arg::with_name("mc_version")
+                    .required(true)
+                    .index(2)
+                    .help("The minecraft version to upgrade to"))
+            ])
         ])
 }
 
-fn main() {
-    let matches = build_cli().get_matches();
+macro_rules! report_error{
+    ($($items:expr),+) => {{
+        report_error(format!($($items),+))
+    }}
+}
 
-    match matches.subcommand(){
+fn report_error<S: Into<String>>(s: S) -> modpack_tool::Error{
+    modpack_tool::ErrorKind::ReportError(s.into()).into()
+}
+
+quick_main!(run);
+
+fn run() -> Result<i32> {
+    let matches = build_cli().get_matches();
+    let mut core = Core::new().expect("Failed to start tokio");
+
+    let log_path = "modpack_tool.log";
+
+    let log_file = std::fs::File::create(log_path).expect("Couldn't open log file");
+    let log_file_stream = slog_json::Json::default(log_file);
+
+
+    let root = Logger::root(Arc::new(Mutex::new(slog::Duplicate::new(slog::LevelFilter::new(slog_term::term_compact(),
+                                                                slog::Level::Debug),
+                                            log_file_stream)
+                                .fuse())).ignore_res(),
+                            o!());
+    let log = root.new(o!());
+
+    let run: Option<Box<Future<Item=(),Error=modpack_tool::Error>>> = match matches.subcommand(){
         ("update",Some(args)) => {
             let pack_path = args.value_of("pack_file").expect("pack_file is required!");
 
-            let log_path = pack_path.to_owned() + ".log";
-
-            let log_file = std::fs::File::create(log_path).expect("Couldn't open log file");
-            let log_file_stream = slog_json::Json::default(log_file);
-
-
-            let root = Logger::root(Arc::new(Mutex::new(slog::Duplicate::new(slog::LevelFilter::new(slog_term::term_compact(),
-                                                                        slog::Level::Debug),
-                                                    log_file_stream)
-                                        .fuse())).ignore_res(),
-                                    o!());
-            let log = root.new(o!());
-
-            update(pack_path,log);
+            Some(Box::new(update(pack_path,log,&core.handle())))
         }
         ("add",Some(args)) => {
             let pack_path = args.value_of("pack_file").expect("pack_file is required!");
             let mod_url = args.value_of("mod_url").expect("mod_url is required!");
 
             add(pack_path,mod_url);
+            None
         }
-        ("try_upgrade",Some(args)) => {
-            
+        ("dev",Some(args)) => {
+            let sub_cmd = match args.subcommand_name(){
+                Some(sub_cmd)=> sub_cmd,
+                None => {
+                    build_cli().print_help().expect("Failed to print help. Is the terminal broken?");
+                    return Ok(0);
+                }
+            };
+            let args = args.subcommand_matches(sub_cmd).expect("due to just being given subcommand_name");
+
+            let pack_path = args.value_of("pack_file").expect("pack_file is required due to arg parser");
+            let ver = args.value_of("mc_version").expect("mc_version is required due to arg parser");
+
+            let file = std::fs::File::open(&pack_path).map_err(|_| report_error!("pack {} does not exist",pack_path))?;
+            let pack: ModpackConfig = serde_json::de::from_reader(file)
+                .map_err(|_| report_error("pack file in bad format"))?;
+
+            let ver = if ver.chars().next().expect("mc_version should not have length 0 due to arg parser").is_numeric(){
+                //interpret a versionreq of x as ~x
+                println!("Interpreting version {} as ~{}",ver,ver);
+                format!("~{}",ver)
+            }else{
+                ver.to_owned()
+            };
+            let ver = semver::VersionReq::parse(ver.as_str()).map_err(|_| report_error!("Second argument ({}) was not a semver version requirement",ver))?;
+
+            match sub_cmd{
+                "try_upgrade" => {
+                    Some(Box::new(upgrade::check(ver,pack_path.to_owned(),pack,core.handle())))
+                }
+                "do_upgrade" => {
+                    let release_status =
+                        pack.auto_update_release_status.ok_or_else(|| {
+                            report_error!("Pack {} must have an auto_update_release_status to be able to auto update",pack_path)
+                        })?;
+                    Some(Box::new(upgrade::run(ver,pack_path.to_owned(),pack,release_status,core.handle())))
+                }
+                _ => {
+                    build_cli().print_help().expect("Failed to print help. Is the terminal broken?");
+                    None
+                }
+            }
         }
         _ => {
             build_cli().print_help().expect("Failed to print help. Is the terminal broken?");
+            None
         }
+    };
+    match core.run(run){
+        Ok(_) => Ok(0),
+        Err(modpack_tool::Error(modpack_tool::ErrorKind::ReportError(string),_)) => {
+            eprintln!("ERROR: {}",string);
+            Ok(1)
+        }
+        Err(e) => Err(e)
     }
 }

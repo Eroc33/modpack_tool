@@ -8,17 +8,25 @@ extern crate hyper;
 extern crate hyper_tls;
 extern crate url;
 extern crate sha1;
-extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate tokio_core;
 extern crate semver;
-
 #[macro_use]
 extern crate slog;
 extern crate time;
 extern crate zip;
 extern crate futures_await as futures;
+#[macro_use]
+extern crate scan_rules;
+extern crate kuchiki;
+extern crate regex;
+#[macro_use]
+extern crate lazy_static;
+extern crate termcolor;
+//FIXME: has_class in kuchiki should probably not require selectors to be imported
+//       maybe file a bug for this
+extern crate selectors;
 
 pub mod cache;
 pub mod curseforge;
@@ -29,6 +37,7 @@ pub mod types;
 pub mod forge_version;
 pub mod hash_writer;
 pub mod hacks;
+pub mod upgrade;
 
 pub use download::Downloadable;
 
@@ -54,6 +63,10 @@ error_chain! {
         Json(serde_json::error::Error);
     }
     errors {
+        ReportError(t: String){
+            description("User facing error")
+            display("{}",t)
+        }
         Selector{
             description("couldn't compile selector")
             display("couldn't compile selector")

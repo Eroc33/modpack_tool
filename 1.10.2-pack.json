@@ -1,37 +1,13 @@
 {
-  "version": "1.10.2",
+  "version": "^1.10.2",
   "name": "Euan's 1.10.2 pack",
   "forge": "1.10.2-12.18.2.2166",
   "auto_update_release_status": "Beta",
   "mods": [
     {
       "CurseforgeMod": {
-        "id": "autoreglib",
-        "version": 2327403
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "waila",
-        "version": 2301859
-      }
-    },
-    {
-      "CurseforgeMod": {
         "id": "chisel",
         "version": 2339874
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "mcjtylib",
-        "version": 2337887
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "rftools-control",
-        "version": 2342593
       }
     },
     {
@@ -42,68 +18,8 @@
     },
     {
       "CurseforgeMod": {
-        "id": "psi",
-        "version": 2347126
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "deep-resonance",
-        "version": 2346727
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "rftools",
-        "version": 2346481
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "veinminer",
-        "version": 2361136
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "mcmultipart",
-        "version": 2381408
-      }
-    },
-    {
-      "CurseforgeMod": {
         "id": "opencomputers",
         "version": 2385987
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "chameleon",
-        "version": 2419174
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "extra-utilities",
-        "version": 2430081
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "morpheus",
-        "version": 2358274
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "botania",
-        "version": 2391169
-      }
-    },
-    {
-      "CurseforgeMod": {
-        "id": "journeymap",
-        "version": 2383110
       }
     },
     {
@@ -114,50 +30,134 @@
     },
     {
       "CurseforgeMod": {
+        "id": "autoreglib",
+        "version": 2445828
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "waila",
+        "version": 2417924
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "mcjtylib",
+        "version": 2451959
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "rftools-control",
+        "version": 2451161
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "psi",
+        "version": 2480499
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "deep-resonance",
+        "version": 2450473
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "rftools",
+        "version": 2465110
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "veinminer",
+        "version": 2457081
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "mcmultipart",
+        "version": 2441851
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "chameleon",
+        "version": 2450900
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "extra-utilities",
+        "version": 2481037
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "morpheus",
+        "version": 2432272
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "botania",
+        "version": 2485904
+      }
+    },
+    {
+      "CurseforgeMod": {
+        "id": "journeymap",
+        "version": 2482294
+      }
+    },
+    {
+      "CurseforgeMod": {
         "id": "ender-io",
-        "version": 2429916
+        "version": 2435810
       }
     },
     {
       "CurseforgeMod": {
         "id": "quark",
-        "version": 2363413
+        "version": 2480530
       }
     },
     {
       "CurseforgeMod": {
         "id": "eleccore-rendering-library",
-        "version": 2425223
+        "version": 2467879
       }
     },
     {
       "CurseforgeMod": {
         "id": "baubles",
-        "version": 2424565
+        "version": 2459083
       }
     },
     {
       "CurseforgeMod": {
         "id": "mystical-agriculture",
-        "version": 2431492
+        "version": 2481507
       }
     },
     {
       "CurseforgeMod": {
         "id": "storage-drawers",
-        "version": 2432003
+        "version": 2484308
       }
     },
     {
       "CurseforgeMod": {
         "id": "refined-storage",
-        "version": 2431884
+        "version": 2477560
       }
     },
     {
       "CurseforgeMod": {
         "id": "just-enough-items-jei",
-        "version": 2428966
+        "version": 2485363
       }
     }
   ]

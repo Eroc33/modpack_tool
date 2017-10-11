@@ -1,35 +1,27 @@
 #![feature(conservative_impl_trait,never_type,generators)]
 
-extern crate serde_json;
-#[macro_use]
-extern crate scan_rules;
-#[macro_use]
-extern crate modpack_tool;
-extern crate kuchiki;
-extern crate url;
-extern crate tokio_core;
-extern crate futures_await as futures;
-extern crate regex;
-extern crate semver;
-#[macro_use]
-extern crate lazy_static;
-extern crate termcolor;
+use serde_json;
+use kuchiki;
+use futures;
+use regex;
+use semver;
+use termcolor;
 //FIXME: has_class in kuchiki should probably not require selectors to be imported
 //       maybe file a bug for this
-extern crate selectors;
+use selectors::Element;
+use std;
 
-use futures::future;
 use futures::prelude::*;
 use kuchiki::{NodeDataRef, ElementData};
 use kuchiki::traits::TendrilSink;
-use modpack_tool::download::HttpSimple;
-use modpack_tool::types::ReleaseStatus;
+use ::download::HttpSimple;
+use ::types::ReleaseStatus;
 use scan_rules::scanner::Everything;
 use scan_rules::scanner::runtime::until_pat_a;
 use std::borrow::Borrow;
 use std::io::Cursor;
 use std::sync::Arc;
-use tokio_core::reactor::{self,Core};
+use tokio_core::reactor;
 use url::Url;
 use regex::Regex;
 
@@ -38,28 +30,28 @@ use termcolor::Color::*;
 use std::io::Write;
 
 lazy_static!{
-    pub static ref COLOR_OUTPUT: Arc<termcolor::BufferWriter> = Arc::new(termcolor::BufferWriter::stdout(termcolor::ColorChoice::Always));
-    pub static ref INFO_COLOR: ColorSpec = {
+    static ref COLOR_OUTPUT: Arc<termcolor::BufferWriter> = Arc::new(termcolor::BufferWriter::stdout(termcolor::ColorChoice::Always));
+    static ref INFO_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
         spec.set_fg(Some(Cyan)).set_bold(true).set_intense(true);
         spec
     };
-    pub static ref WARN_COLOR: ColorSpec = {
+    static ref WARN_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
         spec.set_fg(Some(Yellow)).set_bold(true).set_intense(true);
         spec
     };
-    pub static ref SUCCESS_COLOR: ColorSpec = {
+    static ref SUCCESS_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
         spec.set_fg(Some(Green)).set_bold(true).set_intense(true);
         spec
     };
-    pub static ref FAILURE_COLOR: ColorSpec = {
+    static ref FAILURE_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
         spec.set_fg(Some(Red)).set_bold(true).set_intense(true);
         spec
     };
-    pub static ref DEFAULT_COLOR: ColorSpec = {
+    static ref DEFAULT_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
         spec.set_fg(Some(White));
         spec
@@ -67,7 +59,7 @@ lazy_static!{
 }
 
 #[derive(Debug)]
-pub struct ModVersionInfo {
+struct ModVersionInfo {
     id: String,
     version: u64,
     file_name: String,
@@ -77,36 +69,29 @@ pub struct ModVersionInfo {
 }
 
 #[derive(PartialEq,Eq)]
-pub enum Response{
+enum Response{
     Yes,
     No,
 }
 
-pub fn prompt_yes_no(default: Response) -> Response{
+//FIXME: seems to always return the default
+fn prompt_yes_no(default: Response) -> Response{
+    use scan_rules::scanner::re_str;
     readln!{
-        (r"(?i)Y|Yes") => Response::Yes,
-        (r"(?i)N|No") => Response::No,
+        (let _ <| re_str(r"(?i)Y|Yes")) => Response::Yes,
+        (let _ <| re_str(r"(?i)N|No")) => Response::No,
         (.._) => default,
     }
 }
 
-pub fn prompt_release_status(default: ReleaseStatus) -> ReleaseStatus{
-    readln!{
-        (r"(?i)A|Alpha") => ReleaseStatus::Alpha,
-        (r"(?i)B|Beta") => ReleaseStatus::Beta,
-        (r"(?i)R|Release") => ReleaseStatus::Release,
-        (.._) => default,
-    }
-}
-
-pub fn extract_version_and_id(url: &str) -> (u64, String) {
+fn extract_version_and_id(url: &str) -> (u64, String) {
     let res = scan!{url;
         ("https://minecraft.curseforge.com/projects/",let project <| until_pat_a::<Everything<String>,&str>("/"),"/files/",let ver, ["/download"]?) => (ver,project),
     };
     res.expect("Unknown modsource url")
 }
 
-pub fn get_attr<N>(node: N, name: &str) -> Option<String>
+fn get_attr<N>(node: N, name: &str) -> Option<String>
     where N: Borrow<NodeDataRef<ElementData>>
 {
     node.borrow()
@@ -116,12 +101,12 @@ pub fn get_attr<N>(node: N, name: &str) -> Option<String>
         .map(|s| s.to_owned())
 }
 
-pub fn find_most_recent
+fn find_most_recent
     (project_name: String,
      target_game_version: semver::VersionReq,
      http_client: HttpSimple,
      target_release_status: ReleaseStatus)
-     -> impl Future<Item = Option<ModVersionInfo>, Error = modpack_tool::Error>{
+     -> impl Future<Item = Option<ModVersionInfo>, Error = ::Error>{
 
     lazy_static!{
         static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)").expect("Couldn't compie pre-checked regex");
@@ -131,7 +116,7 @@ pub fn find_most_recent
     let base_url = Url::parse(BASE_URL).unwrap();
     let scrape_url = base_url.join(&format!("/projects/{}/files", project_name)).unwrap();
     async_block!{
-        let uri = modpack_tool::util::url_to_uri(&scrape_url)?;
+        let uri = ::util::url_to_uri(&scrape_url)?;
         let body = await!(http_client.get(uri)
                 .and_then(move |res| {
                     res.body().fold(vec![],
@@ -145,22 +130,22 @@ pub fn find_most_recent
             .read_from(&mut Cursor::new(body))
             .unwrap();
         let rows = doc.select("table.project-file-listing tbody tr")
-            .map_err(|_| modpack_tool::ErrorKind::Selector)?;
+            .map_err(|_| ::ErrorKind::Selector)?;
         for row in rows {
             let row = row.as_node();
             let release_status =
                 get_attr(row.select(".project-file-release-type div")
-                                .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                                .map_err(|_| ::ErrorKind::Selector)?
                                 .next()
                                 .unwrap(),
                             "title");
             let files_cell = row.select(".project-file-name div")
-                .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                .map_err(|_| ::ErrorKind::Selector)?
                 .next()
                 .unwrap();
             let file_name = files_cell.as_node()
                 .select(".project-file-name-container .overflow-tip")
-                .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                .map_err(|_| ::ErrorKind::Selector)?
                 .next()
                 .unwrap()
                 .text_contents();
@@ -168,19 +153,18 @@ pub fn find_most_recent
             let primary_file =
                 get_attr(files_cell.as_node()
                                 .select(".project-file-download-button a")
-                                .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                                .map_err(|_| ::ErrorKind::Selector)?
                                 .next()
                                 .unwrap(),
                             "href");
             let version_container = row.select(".project-file-game-version")
-                .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                .map_err(|_| ::ErrorKind::Selector)?
                 .next()
                 .unwrap();
             let mut game_versions: Vec<semver::Version> = vec![];
-            use selectors::Element;
             if version_container.has_class(&("multiple".into())){
                 let additional_versions = version_container.as_node().select(".additional-versions")
-                    .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                    .map_err(|_| ::ErrorKind::Selector)?
                     .next()
                     .unwrap();
                 let cell_ref = additional_versions.attributes.borrow();
@@ -199,7 +183,7 @@ pub fn find_most_recent
                 }
             }
             let primary_game_version = row.select(".project-file-game-version .version-label")
-                .map_err(|_| modpack_tool::ErrorKind::Selector)?
+                .map_err(|_| ::ErrorKind::Selector)?
                 .next()
                 .unwrap()
                 .text_contents();
@@ -214,30 +198,27 @@ pub fn find_most_recent
             let release_status =
             release_status.map(|status| status.parse().expect("Invalid ReleaseStatus"));
 
-            if release_status.map(|status| target_release_status.accepts(&status)).unwrap_or(false) {
-                if game_versions.iter().any(|ver| target_game_version.matches(ver)){
-                    let url = primary_file.map(|s| base_url.join(&s).unwrap()).unwrap();
-                    let (version, _) = extract_version_and_id(url.as_str());
-                    return Ok(Some(ModVersionInfo {
-                        id: project_name.to_string(),
-                        version: version,
-                        file_name: file_name,
-                        download_url: url,
-                        release_status: release_status.unwrap(),
-                        game_versions,
-                    }));
-                }
+            if release_status.map(|status| target_release_status.accepts(&status)).unwrap_or(false) && game_versions.iter().any(|ver| target_game_version.matches(ver)){
+                let url = primary_file.map(|s| base_url.join(&s).unwrap()).unwrap();
+                let (version, _) = extract_version_and_id(url.as_str());
+                return Ok(Some(ModVersionInfo {
+                    id: project_name.to_string(),
+                    version: version,
+                    file_name: file_name,
+                    download_url: url,
+                    release_status: release_status.unwrap(),
+                    game_versions,
+                }));
             }
         }
         Ok(None)
     }
 }
 
-use modpack_tool::curseforge;
-use modpack_tool::types::{ModSource, ModpackConfig};
-use std::env;
+use ::curseforge;
+use ::types::{ModSource, ModpackConfig};
 
-fn check_mc_version_compat(target_game_version: semver::VersionReq, pack: ModpackConfig, handle: reactor::Handle) -> impl Future<Item=(),Error=modpack_tool::Error> + 'static{
+pub fn check(target_game_version: semver::VersionReq, pack_path: String, mut pack: ModpackConfig, handle: reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
     let http_client = HttpSimple::new(&handle);
 
     let check_futures:Vec<_> = pack.mods.clone().into_iter()
@@ -253,10 +234,10 @@ fn check_mc_version_compat(target_game_version: semver::VersionReq, pack: Modpac
                                           ReleaseStatus::Alpha))?;
                         if let Some(found) = found {
                             let mut buf = (*COLOR_OUTPUT).buffer();
-                            buf.set_color(&SUCCESS_COLOR);
-                            write!(buf,"  COMPATIBLE: ");
-                            buf.set_color(&DEFAULT_COLOR);
-                            write!(buf,"{}", curse_mod.id);
+                            buf.set_color(&SUCCESS_COLOR)?;
+                            write!(buf,"  COMPATIBLE: ")?;
+                            buf.set_color(&DEFAULT_COLOR)?;
+                            write!(buf,"{}", curse_mod.id)?;
                             assert_eq!(curse_mod.id, found.id);
                             if found.release_status != ReleaseStatus::Release {
                                 let a_an = if found.release_status == ReleaseStatus::Alpha{
@@ -264,37 +245,39 @@ fn check_mc_version_compat(target_game_version: semver::VersionReq, pack: Modpac
                                 }else if found.release_status == ReleaseStatus::Beta{
                                     "a"
                                 }else{
-                                    unreachable!("Status was not release, alpha, or beta");
+                                    unreachable!("Status was not release, alpha, or beta")
                                 };
-                                buf.set_color(&INFO_COLOR);
-                                writeln!(buf," (as {} {} release)",a_an,found.release_status.value());
-                                buf.set_color(&DEFAULT_COLOR);
+                                buf.set_color(&INFO_COLOR)?;
+                                writeln!(buf," (as {} {} release)",a_an,found.release_status.value())?;
+                                buf.set_color(&DEFAULT_COLOR)?;
                             }else{
-                                writeln!(buf,"");
+                                writeln!(buf,"")?;
                             }
-                            (*COLOR_OUTPUT).print(&buf);
+                            (*COLOR_OUTPUT).print(&buf)?;
                             Ok((curse_mod.into(),Some(found.release_status)))
                         } else {
                             let mut buf = (*COLOR_OUTPUT).buffer();
-                            buf.set_color(&FAILURE_COLOR);
-                            write!(buf,"INCOMPATIBLE: ");
-                            buf.set_color(&DEFAULT_COLOR);
-                            writeln!(buf,"{}", curse_mod.id);
-                            (*COLOR_OUTPUT).print(&buf);
+                            buf.set_color(&FAILURE_COLOR)?;
+                            write!(buf,"INCOMPATIBLE: ")?;
+                            buf.set_color(&DEFAULT_COLOR)?;
+                            writeln!(buf,"{}", curse_mod.id)?;
+                            (*COLOR_OUTPUT).print(&buf)?;
                             Ok((curse_mod.into(),None))
                         }
                     }
                     
                 ) as
-                Box<Future<Item = (ModSource,Option<ReleaseStatus>), Error = modpack_tool::Error>>
+                Box<Future<Item = (ModSource,Option<ReleaseStatus>), Error = ::Error>>
             }
             ModSource::MavenMod { artifact, repo } => {
-                let mut buf = (*COLOR_OUTPUT).buffer();
-                buf.set_color(&WARN_COLOR);
-                writeln!(buf,"you must check maven mod: {:?}",artifact);
-                buf.set_color(&DEFAULT_COLOR);
-                (*COLOR_OUTPUT).print(&buf);
-                Box::new(future::ok((ModSource::MavenMod { artifact, repo },None)))
+                Box::new(async_block!{
+                    let mut buf = (*COLOR_OUTPUT).buffer();
+                    buf.set_color(&WARN_COLOR)?;
+                    writeln!(buf,"you must check maven mod: {:?}",artifact)?;
+                    buf.set_color(&DEFAULT_COLOR)?;
+                    (*COLOR_OUTPUT).print(&buf)?;
+                    Ok((ModSource::MavenMod { artifact, repo },None))
+                })
             }
         }).collect();
 
@@ -302,7 +285,7 @@ fn check_mc_version_compat(target_game_version: semver::VersionReq, pack: Modpac
         let mut total = 0usize;
         let mut alpha_compatible = 0usize;
         let mut beta_compatible = 0usize;
-        let mut compatible = 0usize;
+        let mut compatible = vec![];
         let mut incompatible = vec![];
 
         let strm = futures::stream::futures_unordered(check_futures);
@@ -313,20 +296,20 @@ fn check_mc_version_compat(target_game_version: semver::VersionReq, pack: Modpac
             match status{
                 None => incompatible.push(modd),
                 Some(ReleaseStatus::Alpha) => {
-                    compatible += 1;
+                    compatible.push(modd);
                     alpha_compatible += 1;
                 }
                 Some(ReleaseStatus::Beta) => {
-                    compatible += 1;
+                    compatible.push(modd);
                     beta_compatible += 1;
                 }
                 Some(ReleaseStatus::Release) => {
-                    compatible += 1;
+                    compatible.push(modd);
                 }
             }
         }
 
-        if incompatible.len() == 0{
+        if incompatible.is_empty() {
             let pack_update_status = pack.auto_update_release_status.unwrap_or(ReleaseStatus::Release);
             let mut min_required_status = pack_update_status;
             println!("All of your mods are compatible.");
@@ -362,31 +345,34 @@ fn check_mc_version_compat(target_game_version: semver::VersionReq, pack: Modpac
                     },
                     _ => {}
                 }
-                await!(do_update(new_name,pack,min_required_status,handle))?;
-                return Ok(())
+                for modsource in compatible {
+                    pack.replace_mod(modsource);
+                }
+
+                let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
+                serde_json::ser::to_writer_pretty(&mut file, &pack)?;
+                return Ok(());
             }
         }else{
-            let percent_compatible = (compatible as f32)/(total as f32) * 100.0;
+            let percent_compatible = (compatible.len() as f32)/(total as f32) * 100.0;
             let mut buf = (*COLOR_OUTPUT).buffer();
-            buf.set_color(&INFO_COLOR);
-            writeln!(buf,"{:.1}% of your mods are compatible.",percent_compatible);
-            writeln!(buf,"You must remove or replace incompatible mods before you can upgrade.");
-            writeln!(buf,"{} incompatible mods:",incompatible.len());
-            buf.set_color(&WARN_COLOR);
+            buf.set_color(&INFO_COLOR)?;
+            writeln!(buf,"{:.1}% of your mods are compatible.",percent_compatible)?;
+            writeln!(buf,"You must remove or replace incompatible mods before you can upgrade.")?;
+            writeln!(buf,"{} incompatible mods:",incompatible.len())?;
+            buf.set_color(&WARN_COLOR)?;
             for modd in incompatible{
-                writeln!(buf,"\t {} ( {} )",modd.identifier_string(),modd.guess_project_url().unwrap_or_else(|| "COULD NOT GUESS PROJECT URL".to_owned()));
+                writeln!(buf,"\t {} ( {} )",modd.identifier_string(),modd.guess_project_url().unwrap_or_else(|| "COULD NOT GUESS PROJECT URL".to_owned()))?;
             }
-            buf.set_color(&DEFAULT_COLOR);
-            (*COLOR_OUTPUT).print(&buf);
+            buf.set_color(&DEFAULT_COLOR)?;
+            (*COLOR_OUTPUT).print(&buf)?;
         }
         Ok(())
     }
 }
 
-fn do_update(pack_path: String, mut pack: ModpackConfig, release_status: ReleaseStatus, handle: reactor::Handle) -> impl Future<Item=(),Error=modpack_tool::Error> + 'static{
+pub fn run(target_game_version: semver::VersionReq, pack_path: String, mut pack: ModpackConfig, release_status: ReleaseStatus, handle: reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
     let http_client = HttpSimple::new(&handle);
-
-    let target_version = pack.version.clone();
 
     async_block!{
         let mut new_mods = vec![];
@@ -397,7 +383,7 @@ fn do_update(pack_path: String, mut pack: ModpackConfig, release_status: Release
             let updated = match modd {
                 ModSource::CurseforgeMod(curse_mod) => {
                     let found = await!(find_most_recent(curse_mod.id.clone(),
-                                            target_version.clone(),
+                                            target_game_version.clone(),
                                             http_client.clone(),
                                             release_status))?;
                     if let Some(found) = found {
@@ -435,7 +421,7 @@ fn do_update(pack_path: String, mut pack: ModpackConfig, release_status: Release
                 new_mods.push(updated);
             }
         }
-        for modsource in new_mods.into_iter() {
+        for modsource in new_mods {
             pack.replace_mod(modsource);
         }
 
@@ -443,37 +429,4 @@ fn do_update(pack_path: String, mut pack: ModpackConfig, release_status: Release
         serde_json::ser::to_writer_pretty(&mut file, &pack)?;
         Ok(())
     }
-}
-
-fn main() {
-    let mut core = Core::new().expect("Failed to start tokio");
-    let pack_path = env::args().nth(1).expect("expected pack as first arg");
-
-    let file = std::fs::File::open(&pack_path).expect("pack does not exist");
-    let pack: ModpackConfig = serde_json::de::from_reader(file)
-        .expect("pack file in bad format");
-
-    let release_status =
-        pack.auto_update_release_status.unwrap_or_else(|| {
-            die!("Pack must have an auto_update_release_status to be able to auto update")
-        });
-
-    match env::args().nth(2).map(|ver|{
-        if ver.chars().next().expect("Argument with 0 length?").is_numeric(){
-            //view a versionreq of x as ~x
-            println!("Interpreting version {} as ~{}",ver,ver);
-            format!("~{}",ver)
-        }else{
-            ver
-        }
-    }).map(|ver| semver::VersionReq::parse(ver.as_str()).unwrap_or_else(|_| die!("Second argument must be a semver version requirement"))){
-        Some(target_ver) => {
-            let fut = check_mc_version_compat(target_ver,pack,core.handle());
-            core.run(fut).unwrap()
-        }
-        None => {
-            let fut = do_update(pack_path,pack,release_status,core.handle());
-            core.run(fut).unwrap()
-        }
-    };
 }
