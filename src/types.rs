@@ -63,15 +63,15 @@ pub enum ModSource {
 
 impl ModSource{
     pub fn identifier_string(&self) -> String{
-        match self{
-            &ModSource::CurseforgeMod(ref modd) => modd.id.clone(),
-            &ModSource::MavenMod{ref artifact,..} => artifact.to_string(),
+        match *self{
+            ModSource::CurseforgeMod(ref modd) => modd.id.clone(),
+            ModSource::MavenMod{ref artifact,..} => artifact.to_string(),
         }
     }
     pub fn guess_project_url(&self) -> Option<String>{
-        match self{
-            &ModSource::CurseforgeMod(ref modd) => modd.project_uri().map(|uri| uri.to_string()).ok(),
-            &ModSource::MavenMod{ref artifact,..} => None,
+        match *self{
+            ModSource::CurseforgeMod(ref modd) => modd.project_uri().map(|uri| uri.to_string()).ok(),
+            ModSource::MavenMod{..} => None,
         }
     }
 }
