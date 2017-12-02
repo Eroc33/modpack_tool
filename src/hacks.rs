@@ -5,9 +5,9 @@ use serde_json::{self, Value};
 use std;
 use std::path::Path;
 
-const HACK_REQUIRED: &'static [&'static str] = &["com.typesafe.akka", "com.typesafe"];
+const HACK_REQUIRED: &[& str] = &["com.typesafe.akka", "com.typesafe"];
 
-const HACK_REPO_REDIRECT: &'static str = "https://repo1.maven.org/maven2/";
+const HACK_REPO_REDIRECT: & str = "https://repo1.maven.org/maven2/";
 
 pub fn hack_forge_version_json<P>(path: P) -> ::Result<()>
     where P: AsRef<Path>

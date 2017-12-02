@@ -60,7 +60,7 @@ impl<T: Cacheable + 'static> ::cache::Cache<T> for FolderCache {
             Box::new(future::result(first_file_in_folder(&cached_path)).or_else(move |_|{
                 //invalidate cache
                 warn!(log,"Removing invalid cache folder {:?}",cached_path);
-                future::result(fs::remove_dir(cached_path).map_err(|ioe| download::Error::from(ioe))).and_then(|_|{
+                future::result(fs::remove_dir(cached_path).map_err(download::Error::from)).and_then(|_|{
                     //FIXME: will retry forever
                     //retry
                     Self::with(t,manager,log)
@@ -70,7 +70,7 @@ impl<T: Cacheable + 'static> ::cache::Cache<T> for FolderCache {
             info!(log, "item is not cached, downloading now");
             match t.uri() {
                 Ok(uri) => {
-                    Box::new(manager.download(uri, cached_path.clone(), true, log)
+                    Box::new(manager.download(uri, cached_path.clone(), true, &log)
                         .and_then(move |_| first_file_in_folder(cached_path)))
                 }
                 Err(e) => Box::new(future::err(download::Error::from(e))),
@@ -93,7 +93,7 @@ impl<T: Cacheable + 'static> ::cache::Cache<T> for FileCache {
             info!(log, "item is not cached, downloading now");
             match t.uri() {
                 Ok(uri) => {
-                    Box::new(manager.download(uri, cached_path.clone(), false, log)
+                    Box::new(manager.download(uri, cached_path.clone(), false, &log)
                         .map(move |_| cached_path))
                 }
                 Err(e) => Box::new(future::err(download::Error::from(e))),

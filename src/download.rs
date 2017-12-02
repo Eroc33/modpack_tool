@@ -79,7 +79,7 @@ impl Downloadable for Url {
 
 impl Downloadable for Uri {
     fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
-        Box::new(manager.download(self, location, false, log))
+        Box::new(manager.download(self, location, false, &log))
     }
 }
 
@@ -135,7 +135,7 @@ impl DownloadManager {
                     uri: Uri,
                     path: PathBuf,
                     append_filename: bool,
-                    log: Logger)
+                    log: &Logger)
                     -> BoxFuture<()> {
         self._download(uri, path, append_filename, log)
     }
@@ -156,41 +156,43 @@ impl DownloadManager {
                  uri: Uri,
                  path: PathBuf,
                  append_filename: bool,
-                 _log: Logger)
+                 log: &Logger)
                  -> BoxFuture<()> {
-        //let log = log.new(o!("url"=>url.to_string()));
-        //info!(log, "Downloading");
-        //info!(log, "path: {}, with_file_name: {}", path.as_path().to_string_lossy(), path.with_file_name("").as_path().to_string_lossy(), );
+        let log = log.new(o!("uri"=>uri.to_string()));
+        trace!(log, "Downloading {}", path.as_path().to_string_lossy());
         let folder_path = if append_filename {
             path.clone()
         } else {
             path.with_file_name("")
         };
 
-        let mut request = self.request_with_base_headers(hyper::Method::Get, uri.clone());
+        let mut request = self.request_with_base_headers(hyper::Method::Get, uri);
         let http_client = self.http_client.clone();
 
         let res = async_block!{
-
+            trace!(log,"Creating dir {}",folder_path.to_string_lossy());
             fs::create_dir_all(folder_path)?;
 
             // FIXME find a way to workout which mod file is which *before* downloading
             if path.exists() && path.is_file() {
+                trace!(log,"Checking timestamp on file {}",path.to_string_lossy());
                 let timestamp = util::file_timestamp(&path)?;
                 request.headers_mut().set(hyper::header::IfModifiedSince(hyper::header::HttpDate::from(timestamp)));
             }
 
+            trace!(log,"Doing the request now");
             let (res,url) = await!(http_client.request_following_redirects(request)?)?;
+            trace!(log,"Request done");
             
             if res.status() == hyper::StatusCode::NotModified {
-                //info!(log, "not modified, skipping"; "path"=>path.as_path().to_string_lossy().into_owned());
+                trace!(log, "not modified, skipping {}", path.as_path().to_string_lossy());
                 Ok(())
             }else{
                 let mut path = path;
                 if append_filename {
-                    path.push(get_url_filename(url));
+                    path.push(get_url_filename(&url));
                 }
-                //info!(log,"downloaded as"; "path"=>path.as_path().to_string_lossy().into_owned());
+                trace!(log,"Saving the file to {}",path.as_path().to_string_lossy());
                 await!(util::save_stream_to_file(res.body(), path))?;
                 Ok(())
             }
@@ -200,7 +202,7 @@ impl DownloadManager {
     }
 }
 
-fn get_url_filename(url: Url) -> String {
+fn get_url_filename(url: &Url) -> String {
     match url.path_segments() {
         Some(parts) => {
             url::percent_encoding::percent_decode(parts.last().unwrap().as_bytes())

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-pub const BASE_URL: &'static str = "http://files.minecraftforge.net/maven/";
-pub const JSON_URL: &'static str = "http://files.minecraftforge.\
+pub const BASE_URL: & str = "http://files.minecraftforge.net/maven/";
+pub const JSON_URL: & str = "http://files.minecraftforge.\
                                     net/maven/net/minecraftforge/forge/json/";
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -6,7 +6,7 @@ use futures::prelude::*;
 use hyper::Uri;
 use maven::{MavenArtifact, ResolvedArtifact};
 use slog::Logger;
-use std::io::{Read, Cursor};
+use std::io::{Read, Write, Cursor};
 use std::path::PathBuf;
 use tokio_core::reactor::Handle;
 use semver;
@@ -62,6 +62,12 @@ pub enum ModSource {
 }
 
 impl ModSource{
+	pub fn version_string(&self) -> String{
+        match *self{
+            ModSource::CurseforgeMod(ref modd) => modd.version.to_string(),
+            ModSource::MavenMod{ref artifact,..} => artifact.version.to_string(),
+        }
+    }
     pub fn identifier_string(&self) -> String{
         match *self{
             ModSource::CurseforgeMod(ref modd) => modd.id.clone(),
@@ -89,7 +95,7 @@ impl Downloadable for ModSource {
             ModSource::MavenMod { repo, artifact } => {
                 Box::new(async_block!{
                         let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
-                        Ok(await!(artifact.download_from(location.as_ref(), repo, manager, log))?)
+                        Ok(await!(artifact.download_from(location.as_ref(), repo, &manager, log))?)
                 })
             }
         }
@@ -178,7 +184,7 @@ impl MCLibraryListing {
     }
 }
 
-const MC_LIBS_MAVEN: &'static str = "https://libraries.minecraft.net/";
+const MC_LIBS_MAVEN: & str = "https://libraries.minecraft.net/";
 
 impl Downloadable for MCLibraryListing {
     fn download(self,
@@ -316,4 +322,33 @@ impl ModpackConfig {
 
         self.mods.push(modsource);
     }
+	pub fn add_mod_by_url(&mut self, mod_url: &str) -> ::Result<()>{		
+		let modsource: ModSource = complete!(&mod_url,do_parse!(
+			tag_s!("https://minecraft.curseforge.com/projects/") >>
+			id: take_till_s!(|c: char| c=='/') >>
+			tag_s!("/files/") >>
+			version: map_res!(take_while_s!(|c: char| c.is_digit(10)),u64::from_str) >>
+			opt!(tag_s!("/download")) >>
+			(curseforge::Mod{
+				id: id.to_owned(),
+				version
+			}.into())
+		)).to_full_result().map_err(|_| ::ErrorKind::BadModUrl(mod_url.to_owned()))?;
+
+		self.replace_mod(modsource);
+
+		Ok(())
+	}
+	
+	pub fn load<R>(reader: R) -> ::Result<Self>
+		where R: Read
+	{
+		Ok(serde_json::de::from_reader(reader)?)
+	}
+	
+	pub fn save<W>(&self,writer: &mut W) -> ::Result<()>
+		where W: Write
+	{
+		Ok(serde_json::ser::to_writer_pretty(writer, &self)?)
+	}
 }

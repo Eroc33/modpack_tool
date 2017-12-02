@@ -1,5 +1,4 @@
 #![feature(custom_derive,slice_patterns,conservative_impl_trait,never_type,generators,proc_macro)]
-#![deny(clippy)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -18,7 +17,7 @@ extern crate time;
 extern crate zip;
 extern crate futures_await as futures;
 #[macro_use]
-extern crate scan_rules;
+extern crate nom;
 extern crate kuchiki;
 extern crate regex;
 #[macro_use]
@@ -75,6 +74,10 @@ error_chain! {
             description("unknown url scheme")
             display("unknown url scheme: '{}'", t)
         }
+		BadModUrl(s: String){
+			description("Couldn't parse mod url")
+            display("Couldn't parse mod url: '{}'", s)
+		}
     }
 }
 

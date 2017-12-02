@@ -13,17 +13,16 @@ hyper-tls = "0.1.2"
 kuchiki = "0.6"
 lazy_static = "0.2.9"
 log = "*"
+nom = {version = "3.2.1", features = ["regexp"]}
 regex = "0.2.2"
 selectors = "0.18.0"
 serde = "*"
 serde_derive = "*"
 serde_json = "*"
 sha1 = "*"
-slog = "*"
-slog-json = "*"
-slog-stdlog = "*"
-slog-stream = "*"
-slog-term = "*"
+slog-json = "2"
+slog-stdlog = "3"
+slog-term = "2"
 termcolor = "0.3.3"
 time = "*"
 tokio-core = "0.1"
@@ -33,21 +32,10 @@ zip = "0.2"
 [dependencies.futures-await]
 git = "https://github.com/alexcrichton/futures-await"
 
-[dependencies.scan-rules]
-features = ["nightly-pattern", "regex"]
-git = "https://github.com/DanielKeep/rust-scan-rules"
-
 [dependencies.semver]
 features = ["serde"]
 version = "0.8.0"
 
-[profile]
-
-[profile.release]
-codegen-units = 1
-debug = false
-debug-assertions = false
-lto = true
-opt-level = 3
-panic = "unwind"
-rpath = false
+[dependencies.slog]
+features = ["max_level_trace"]
+version = "2"

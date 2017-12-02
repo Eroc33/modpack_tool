@@ -16,11 +16,10 @@ use kuchiki::{NodeDataRef, ElementData};
 use kuchiki::traits::TendrilSink;
 use ::download::HttpSimple;
 use ::types::ReleaseStatus;
-use scan_rules::scanner::Everything;
-use scan_rules::scanner::runtime::until_pat_a;
 use std::borrow::Borrow;
 use std::io::Cursor;
 use std::sync::Arc;
+use std::str::FromStr;
 use tokio_core::reactor;
 use url::Url;
 use regex::Regex;
@@ -28,6 +27,28 @@ use regex::Regex;
 use termcolor::{ColorSpec,WriteColor};
 use termcolor::Color::*;
 use std::io::Write;
+
+macro_rules! format_colored{
+    ($output:expr; $($rest:tt)+ ) => {
+        let mut buf = $output.buffer();
+        format_colored!(_impl buf; $($rest)+ );
+        $output.print(&buf)?;
+    };
+    (_impl $buf:expr ; ($color:expr){ $($inner: tt)* }, $($rest: tt)+ ) =>{
+        $buf.set_color($color)?;
+        format_colored!(_impl $buf; $($inner)* );
+        $buf.set_color(&DEFAULT_COLOR)?;
+        format_colored!(_impl $buf; $($rest)* );
+    };
+    (_impl $buf:expr ; ($color:expr){ $($inner: tt)* } ) =>{
+        $buf.set_color($color)?;
+        format_colored!(_impl $buf; $($inner)* );
+        $buf.set_color(&DEFAULT_COLOR)?;
+    };
+    (_impl $buf:expr ; $($rest: tt)* ) =>{
+        write!($buf, $($rest)+ )?;
+    };
+}
 
 lazy_static!{
     static ref COLOR_OUTPUT: Arc<termcolor::BufferWriter> = Arc::new(termcolor::BufferWriter::stdout(termcolor::ColorChoice::Always));
@@ -76,19 +97,25 @@ enum Response{
 
 //FIXME: seems to always return the default
 fn prompt_yes_no(default: Response) -> Response{
-    use scan_rules::scanner::re_str;
-    readln!{
-        (let _ <| re_str(r"(?i)Y|Yes")) => Response::Yes,
-        (let _ <| re_str(r"(?i)N|No")) => Response::No,
-        (.._) => default,
-    }
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line).expect("Failed to read line");
+    let res = alt_complete!(line.as_str(),
+          map!(re_match!(r"(?i)Y|Yes"), |_| Response::Yes)
+        | map!(re_match!(r"(?i)N|No"),  |_| Response::No)
+    );
+    res.to_result().unwrap_or_else(|_| default)
 }
 
-fn extract_version_and_id(url: &str) -> (u64, String) {
-    let res = scan!{url;
-        ("https://minecraft.curseforge.com/projects/",let project <| until_pat_a::<Everything<String>,&str>("/"),"/files/",let ver, ["/download"]?) => (ver,project),
+fn extract_version_and_id(url: &str) -> (u64, &str) {
+    let res = do_parse!{url,
+        tag_s!("https://minecraft.curseforge.com/projects/") >>
+        project: take_till_s!(|c: char| c=='/') >>
+        tag_s!("/files/") >>
+        ver: map_res!(take_while_s!(|c: char| c.is_digit(10)),u64::from_str) >>
+		opt!(tag_s!("/download")) >>
+        ((ver,project))
     };
-    res.expect("Unknown modsource url")
+    res.to_result().expect("Unknown modsource url")
 }
 
 fn get_attr<N>(node: N, name: &str) -> Option<String>
@@ -112,7 +139,7 @@ fn find_most_recent
         static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)").expect("Couldn't compie pre-checked regex");
     }
 
-    const BASE_URL: &'static str = "https://minecraft.curseforge.com";
+    const BASE_URL: & str = "https://minecraft.curseforge.com";
     let base_url = Url::parse(BASE_URL).unwrap();
     let scrape_url = base_url.join(&format!("/projects/{}/files", project_name)).unwrap();
     async_block!{
@@ -169,7 +196,7 @@ fn find_most_recent
                     .unwrap();
                 let cell_ref = additional_versions.attributes.borrow();
                 if let Some(title) = cell_ref.get("title"){
-                    for version in TITLE_REGEX.split(title.as_ref()){
+                    for version in TITLE_REGEX.split(title){
                         if !(version.starts_with("Java") || version.starts_with("java")) && !version.is_empty(){
                             //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
                             let version = if version.chars().filter(|&c| c=='.').count() == 1 {
@@ -218,8 +245,8 @@ fn find_most_recent
 use ::curseforge;
 use ::types::{ModSource, ModpackConfig};
 
-pub fn check(target_game_version: semver::VersionReq, pack_path: String, mut pack: ModpackConfig, handle: reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
-    let http_client = HttpSimple::new(&handle);
+pub fn check(target_game_version: &semver::VersionReq, pack_path: String, mut pack: ModpackConfig, handle: &reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
+    let http_client = HttpSimple::new(handle);
 
     let check_futures:Vec<_> = pack.mods.clone().into_iter()
         .map(|modd| match modd {
@@ -233,11 +260,7 @@ pub fn check(target_game_version: semver::VersionReq, pack_path: String, mut pac
                                           http_client_handle,
                                           ReleaseStatus::Alpha))?;
                         if let Some(found) = found {
-                            let mut buf = (*COLOR_OUTPUT).buffer();
-                            buf.set_color(&SUCCESS_COLOR)?;
-                            write!(buf,"  COMPATIBLE: ")?;
-                            buf.set_color(&DEFAULT_COLOR)?;
-                            write!(buf,"{}", curse_mod.id)?;
+                            format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
                             assert_eq!(curse_mod.id, found.id);
                             if found.release_status != ReleaseStatus::Release {
                                 let a_an = if found.release_status == ReleaseStatus::Alpha{
@@ -247,21 +270,13 @@ pub fn check(target_game_version: semver::VersionReq, pack_path: String, mut pac
                                 }else{
                                     unreachable!("Status was not release, alpha, or beta")
                                 };
-                                buf.set_color(&INFO_COLOR)?;
-                                writeln!(buf," (as {} {} release)",a_an,found.release_status.value())?;
-                                buf.set_color(&DEFAULT_COLOR)?;
+                                format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)\n", a_an, found.release_status.value() } );
                             }else{
-                                writeln!(buf,"")?;
+                                format_colored!((*COLOR_OUTPUT); "\n" );
                             }
-                            (*COLOR_OUTPUT).print(&buf)?;
                             Ok((curse_mod.into(),Some(found.release_status)))
                         } else {
-                            let mut buf = (*COLOR_OUTPUT).buffer();
-                            buf.set_color(&FAILURE_COLOR)?;
-                            write!(buf,"INCOMPATIBLE: ")?;
-                            buf.set_color(&DEFAULT_COLOR)?;
-                            writeln!(buf,"{}", curse_mod.id)?;
-                            (*COLOR_OUTPUT).print(&buf)?;
+                            format_colored!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
                             Ok((curse_mod.into(),None))
                         }
                     }
@@ -271,11 +286,7 @@ pub fn check(target_game_version: semver::VersionReq, pack_path: String, mut pac
             }
             ModSource::MavenMod { artifact, repo } => {
                 Box::new(async_block!{
-                    let mut buf = (*COLOR_OUTPUT).buffer();
-                    buf.set_color(&WARN_COLOR)?;
-                    writeln!(buf,"you must check maven mod: {:?}",artifact)?;
-                    buf.set_color(&DEFAULT_COLOR)?;
-                    (*COLOR_OUTPUT).print(&buf)?;
+                    format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"you must check maven mod: {:?}",artifact});
                     Ok((ModSource::MavenMod { artifact, repo },None))
                 })
             }
@@ -355,24 +366,22 @@ pub fn check(target_game_version: semver::VersionReq, pack_path: String, mut pac
             }
         }else{
             let percent_compatible = (compatible.len() as f32)/(total as f32) * 100.0;
-            let mut buf = (*COLOR_OUTPUT).buffer();
-            buf.set_color(&INFO_COLOR)?;
-            writeln!(buf,"{:.1}% of your mods are compatible.",percent_compatible)?;
-            writeln!(buf,"You must remove or replace incompatible mods before you can upgrade.")?;
-            writeln!(buf,"{} incompatible mods:",incompatible.len())?;
-            buf.set_color(&WARN_COLOR)?;
+            format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){"\
+                {:.1}% of your mods are compatible.\n\
+                You must remove or replace incompatible mods before you can upgrade.\n\
+                {} incompatible mods:\n\
+            ", percent_compatible, incompatible.len()
+            });
             for modd in incompatible{
-                writeln!(buf,"\t {} ( {} )",modd.identifier_string(),modd.guess_project_url().unwrap_or_else(|| "COULD NOT GUESS PROJECT URL".to_owned()))?;
+                format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"\t {} ( {} )\n",modd.identifier_string(),modd.guess_project_url().unwrap_or_else(|| "COULD NOT GUESS PROJECT URL".to_owned()) });
             }
-            buf.set_color(&DEFAULT_COLOR)?;
-            (*COLOR_OUTPUT).print(&buf)?;
         }
         Ok(())
     }
 }
 
-pub fn run(target_game_version: semver::VersionReq, pack_path: String, mut pack: ModpackConfig, release_status: ReleaseStatus, handle: reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
-    let http_client = HttpSimple::new(&handle);
+pub fn run(target_game_version: semver::VersionReq, pack_path: String, mut pack: ModpackConfig, release_status: ReleaseStatus, handle: &reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
+    let http_client = HttpSimple::new(handle);
 
     async_block!{
         let mut new_mods = vec![];
@@ -426,7 +435,7 @@ pub fn run(target_game_version: semver::VersionReq, pack_path: String, mut pack:
         }
 
         let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
-        serde_json::ser::to_writer_pretty(&mut file, &pack)?;
+		pack.save(&mut file)?;
         Ok(())
     }
 }

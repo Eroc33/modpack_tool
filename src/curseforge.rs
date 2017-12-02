@@ -2,7 +2,7 @@ use hyper::{self, Uri};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-const CACHE_DIR: &'static str = "./curse_cache/";
+const CACHE_DIR: & str = "./curse_cache/";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mod {
