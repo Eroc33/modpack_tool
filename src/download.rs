@@ -14,30 +14,55 @@ use tokio_core::reactor::Handle;
 use url::{self, Url};
 use util;
 
-error_chain! {
-  foreign_links {
-    Io(::std::io::Error);
-    Uri(hyper::error::UriError);
-    Url(url::ParseError);
-    Hyper(hyper::Error);
-    DurationOutOfRange(time::OutOfRangeError);
-    StdTimeError(::std::time::SystemTimeError);
-  }
-  errors{
-      MalformedRedirect{
-          description("Got a redirect without a location header.")
-      }
-      HttpClientError{
-          description("A http client error occurred. Please check your pack.json is valid")
-      }
-      HttpServerError{
-          description("A http server error occurred. Please try again later")
-      }
-      CacheError{
-          description("There was a problem with the cache.")
-      }
-  }
+#[derive(Debug, Fail)]
+pub enum Error{
+    #[fail(display = "IO error: {}", _0)]
+    Io(#[cause] ::std::io::Error),
+    #[fail(display = "Uri error: {}", _0)]
+    Uri(#[cause] hyper::error::UriError),
+    #[fail(display = "Url error: {}", _0)]
+    Url(#[cause] url::ParseError),
+    #[fail(display = "Hyper error: {}", _0)]
+    Hyper(#[cause] hyper::Error),
+    #[fail(display = "DurationOutOfRange error: {}", _0)]
+    DurationOutOfRange(#[cause] time::OutOfRangeError),
+    #[fail(display = "StdTimeError error: {}", _0)]
+    StdTimeError(#[cause] ::std::time::SystemTimeError),
+    #[fail(display = "Got a redirect without a location header.")]
+    MalformedRedirect,
+    #[fail(display = "A http client error occurred. Please check your pack.json is valid")]
+    HttpClientError,
+    #[fail(display = "A http server error occurred. Please try again later")]
+    HttpServerError,
+    #[fail(display = "There was a problem with the cache.")]
+    CacheError,
 }
+
+impl From<hyper::error::UriError> for Error{
+    fn from(err: hyper::error::UriError)->Self{
+        Error::Uri(err)
+    }
+}
+
+impl From<url::ParseError> for Error{
+    fn from(err: url::ParseError)->Self{
+        Error::Url(err)
+    }
+}
+
+impl From<hyper::Error> for Error{
+    fn from(err: hyper::Error)->Self{
+        Error::Hyper(err)
+    }
+}
+
+impl From<::std::io::Error> for Error{
+    fn from(err: ::std::io::Error)->Self{
+        Error::Io(err)
+    }
+}
+
+pub type Result<T> = ::std::result::Result<T,::download::Error>;
 
 pub type BoxFuture<I> = Box<Future<Item = I, Error = ::download::Error>>;
 
@@ -246,39 +271,46 @@ impl Future for RedirectFollower {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (next_response, next_location) = if let (Some(mut current_response),
-                                                     Some(current_location)) =
-            (self.current_response.take(), self.current_location.take()) {
-            if let Async::Ready(res) = current_response.poll()? {
-                match res.status() {
-                    hyper::StatusCode::Found | hyper::StatusCode::MovedPermanently | hyper::StatusCode::TemporaryRedirect => {
-                        let next = res.headers().get::<header::Location>().take().ok_or_else(|| ErrorKind::MalformedRedirect)?;
-                        let next_url = current_location.join(&*next)?;
-                        let next = ::util::url_to_uri(&next_url)?;
-                        let mut req = Request::new(self.method.clone(), next.clone());
-                        req.set_version(self.version);
-                        *req.headers_mut() = self.headers.clone();
-                        (self.client.request(req), next_url)
-                    },
-                    status if status.is_client_error() => {
-                        return Err(ErrorKind::HttpClientError.into())
+        let res = if let (Some(current_response),Some(current_location)) =
+            (self.current_response.as_mut(), self.current_location.as_mut()) {
+            loop{
+                if let Async::Ready(res) = current_response.poll()? {
+                    match res.status() {
+                        hyper::StatusCode::Found | hyper::StatusCode::MovedPermanently | hyper::StatusCode::TemporaryRedirect => {
+                            let next = res.headers().get::<header::Location>().take().ok_or_else(|| Error::MalformedRedirect)?;
+                            let next_url = current_location.join(&*next)?;
+                            let next = ::util::url_to_uri(&next_url)?;
+                            let mut req = Request::new(self.method.clone(), next.clone());
+                            req.set_version(self.version);
+                            *req.headers_mut() = self.headers.clone();
+                            *current_response = self.client.request(req);
+                            *current_location = next_url;
+                        },
+                        status if status.is_client_error() => {
+                            break Err(Error::HttpClientError);
+                        },
+                        status if status.is_server_error() => {
+                            break Err(Error::HttpServerError);
+                        },
+                        hyper::StatusCode::Ok => {
+                            break Ok(Async::Ready((res, current_location.clone())));
+                        }
+                        other => panic!("Not sure what to do with the statuscode: {:?}. This is a bug.",other),
                     }
-                    status if status.is_server_error() => {
-                        return Err(ErrorKind::HttpServerError.into());
-                    }
-                    hyper::StatusCode::Ok => {
-                        return Ok(Async::Ready((res, current_location)))
-                    }
-                    other => panic!("Not sure what to do with the statuscode: {:?}. This is a bug.",other),
+                } else {
+                    break Ok(Async::NotReady);
                 }
-            } else {
-                (current_response, current_location)
             }
         } else {
             panic!("RedirectFollower polled after return. This is a bug.")
         };
-        self.current_response = Some(next_response);
-        self.current_location = Some(next_location);
-        Ok(Async::NotReady)
+        match &res{
+            &Ok(Async::NotReady) => {}
+            _ => {
+                self.current_response = None;
+                self.current_location = None;
+            }
+        }
+        res
     }
 }

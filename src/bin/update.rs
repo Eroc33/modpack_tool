@@ -12,8 +12,6 @@ extern crate slog_json;
 extern crate zip;
 extern crate futures_await as futures;
 extern crate semver;
-#[macro_use]
-extern crate error_chain;
 extern crate env_logger;
 
 use futures::prelude::*;
@@ -282,10 +280,8 @@ macro_rules! report_error{
 }
 
 fn report_error<S: Into<String>>(s: S) -> modpack_tool::Error{
-    modpack_tool::ErrorKind::ReportError(s.into()).into()
+    modpack_tool::Error::ReportError(s.into())
 }
-
-quick_main!(run);
 
 fn run() -> Result<i32> {
     env_logger::init().expect("Logger setup failure");
@@ -371,10 +367,20 @@ fn run() -> Result<i32> {
     };
     match core.run(run){
         Ok(_) => Ok(0),
-        Err(modpack_tool::Error(modpack_tool::ErrorKind::ReportError(string),_)) => {
+        Err(modpack_tool::Error::ReportError(string)) => {
             eprintln!("ERROR: {}",string);
             Ok(1)
         }
         Err(e) => Err(e)
     }
+}
+
+fn main() {
+    ::std::process::exit(match run() {
+        Ok(ret) => ret,
+        Err(ref e) => {
+            eprintln!("{}", e);
+            1
+        }
+    });
 }

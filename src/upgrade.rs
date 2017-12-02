@@ -157,22 +157,22 @@ fn find_most_recent
             .read_from(&mut Cursor::new(body))
             .unwrap();
         let rows = doc.select("table.project-file-listing tbody tr")
-            .map_err(|_| ::ErrorKind::Selector)?;
+            .map_err(|_| ::Error::Selector)?;
         for row in rows {
             let row = row.as_node();
             let release_status =
                 get_attr(row.select(".project-file-release-type div")
-                                .map_err(|_| ::ErrorKind::Selector)?
+                                .map_err(|_| ::Error::Selector)?
                                 .next()
                                 .unwrap(),
                             "title");
             let files_cell = row.select(".project-file-name div")
-                .map_err(|_| ::ErrorKind::Selector)?
+                .map_err(|_| ::Error::Selector)?
                 .next()
                 .unwrap();
             let file_name = files_cell.as_node()
                 .select(".project-file-name-container .overflow-tip")
-                .map_err(|_| ::ErrorKind::Selector)?
+                .map_err(|_| ::Error::Selector)?
                 .next()
                 .unwrap()
                 .text_contents();
@@ -180,18 +180,18 @@ fn find_most_recent
             let primary_file =
                 get_attr(files_cell.as_node()
                                 .select(".project-file-download-button a")
-                                .map_err(|_| ::ErrorKind::Selector)?
+                                .map_err(|_| ::Error::Selector)?
                                 .next()
                                 .unwrap(),
                             "href");
             let version_container = row.select(".project-file-game-version")
-                .map_err(|_| ::ErrorKind::Selector)?
+                .map_err(|_| ::Error::Selector)?
                 .next()
                 .unwrap();
             let mut game_versions: Vec<semver::Version> = vec![];
             if version_container.has_class(&("multiple".into())){
                 let additional_versions = version_container.as_node().select(".additional-versions")
-                    .map_err(|_| ::ErrorKind::Selector)?
+                    .map_err(|_| ::Error::Selector)?
                     .next()
                     .unwrap();
                 let cell_ref = additional_versions.attributes.borrow();
@@ -210,7 +210,7 @@ fn find_most_recent
                 }
             }
             let primary_game_version = row.select(".project-file-game-version .version-label")
-                .map_err(|_| ::ErrorKind::Selector)?
+                .map_err(|_| ::Error::Selector)?
                 .next()
                 .unwrap()
                 .text_contents();

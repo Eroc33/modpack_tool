@@ -333,7 +333,7 @@ impl ModpackConfig {
 				id: id.to_owned(),
 				version
 			}.into())
-		)).to_full_result().map_err(|_| ::ErrorKind::BadModUrl(mod_url.to_owned()))?;
+		)).to_full_result().map_err(|_| ::Error::BadModUrl{url: mod_url.to_owned()})?;
 
 		self.replace_mod(modsource);
 

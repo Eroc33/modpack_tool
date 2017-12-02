@@ -14,7 +14,7 @@ pub type Cache = ::cache::FolderCache;
 
 impl Mod{
     pub fn project_uri(&self) -> Result<Uri, hyper::error::UriError> {
-        let loc = format!("http://minecraft.curseforge.com/projects/{}/",
+        let loc = format!("https://minecraft.curseforge.com/projects/{}/",
                           self.id);
         Ok(Uri::from_str(&loc)?)
     }
@@ -30,7 +30,7 @@ impl ::cache::Cacheable for Mod {
     }
 
     fn uri(&self) -> Result<Uri, hyper::error::UriError> {
-        let loc = format!("http://minecraft.curseforge.com/projects/{}/files/{}/download",
+        let loc = format!("https://minecraft.curseforge.com/projects/{}/files/{}/download",
                           self.id,
                           self.version.to_string());
         Ok(Uri::from_str(&loc)?)

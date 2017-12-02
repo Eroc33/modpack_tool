@@ -41,9 +41,9 @@ pub trait Cache<T: Cacheable + 'static> {
 fn first_file_in_folder<P: AsRef<Path>>(path: P) -> Result<PathBuf,download::Error> {
     Ok(path.as_ref()
         .read_dir()
-        .map_err(|_| download::Error::from(download::ErrorKind::CacheError))?
+        .map_err(|_| download::Error::CacheError)?
         .next()
-        .ok_or_else(|| download::Error::from(download::ErrorKind::CacheError))?
+        .ok_or_else(|| download::Error::CacheError)?
         .unwrap()
         .path())
 }

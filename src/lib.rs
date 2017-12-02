@@ -7,8 +7,9 @@ extern crate hyper;
 extern crate hyper_tls;
 extern crate url;
 extern crate sha1;
+extern crate failure;
 #[macro_use]
-extern crate error_chain;
+extern crate failure_derive;
 extern crate tokio_core;
 extern crate semver;
 #[macro_use]
@@ -50,40 +51,75 @@ macro_rules! die{
     }}
 }
 
-error_chain! {
-    links {
-        Download(download::Error, download::ErrorKind);
-    }
-    foreign_links{
-        Io(::std::io::Error);
-        Uri(hyper::error::UriError);
-        Hyper(hyper::Error);
-        Zip(zip::result::ZipError);
-        Json(serde_json::error::Error);
-    }
-    errors {
-        ReportError(t: String){
-            description("User facing error")
-            display("{}",t)
-        }
-        Selector{
-            description("couldn't compile selector")
-            display("couldn't compile selector")
-        }
-        UnknownScheme(t: String) {
-            description("unknown url scheme")
-            display("unknown url scheme: '{}'", t)
-        }
-		BadModUrl(s: String){
-			description("Couldn't parse mod url")
-            display("Couldn't parse mod url: '{}'", s)
-		}
+#[derive(Debug, Fail)]
+pub enum Error{
+    #[fail(display = "Download error: {}", _0)]
+    Download(#[cause] download::Error),
+    #[fail(display = "IO error: {}", _0)]
+    Io(#[cause] ::std::io::Error),
+    #[fail(display = "Uri error: {}", _0)]
+    Uri(#[cause] hyper::error::UriError),
+    #[fail(display = "Hyper error: {}", _0)]
+    Hyper(#[cause] hyper::Error),
+    #[fail(display = "Zip error: {}", _0)]
+    Zip(#[cause] zip::result::ZipError),
+    #[fail(display = "JSON error: {}", _0)]
+    Json(#[cause] serde_json::error::Error),
+    #[fail(display = "invalid toolchain name: {}", _0)]
+    ReportError(String),
+    #[fail(display = "couldn't compile selector")]
+    Selector,
+    #[fail(display = "unknown url scheme: '{}'", scheme)]
+    UnknownScheme{
+        scheme: String
+    },
+    #[fail(display = "Couldn't parse mod url: '{}'", url)]
+    BadModUrl{
+        url: String
     }
 }
+
+pub type Result<T> = ::std::result::Result<T,::Error>;
 
 impl From<!> for Error{
     fn from(never:!)->Self{
         never
+    }
+}
+
+impl From<hyper::error::UriError> for Error{
+    fn from(err: hyper::error::UriError)->Self{
+        Error::Uri(err)
+    }
+}
+
+impl From<hyper::Error> for Error{
+    fn from(err: hyper::Error)->Self{
+        Error::Hyper(err)
+    }
+}
+
+impl From<zip::result::ZipError> for Error{
+    fn from(err: zip::result::ZipError)->Self{
+        Error::Zip(err)
+    }
+}
+
+impl From<serde_json::Error> for Error{
+    fn from(err: serde_json::Error)->Self{
+        Error::Json(err)
+    }
+}
+
+impl From<download::Error> for Error{
+    fn from(err: download::Error)->Self{
+        Error::Download(err)
+    }
+}
+
+impl From<std::io::Error> for Error{
+    fn from(err: std::io::Error)->Self{
+        Error::Io(err)
     }
 }
 
