@@ -1,4 +1,4 @@
-#![feature(conservative_impl_trait,never_type,generators)]
+#![feature(conservative_impl_trait, never_type, generators)]
 
 use serde_json;
 use kuchiki;
@@ -9,22 +9,22 @@ use termcolor;
 //FIXME: has_class in kuchiki should probably not require selectors to be imported
 //       maybe file a bug for this
 use selectors::Element;
+use selectors::attr::CaseSensitivity;
 use std;
 
 use futures::prelude::*;
-use kuchiki::{NodeDataRef, ElementData};
+use kuchiki::{ElementData, NodeDataRef};
 use kuchiki::traits::TendrilSink;
-use ::download::HttpSimple;
-use ::types::ReleaseStatus;
+use download::HttpSimple;
+use types::ReleaseStatus;
 use std::borrow::Borrow;
 use std::io::Cursor;
 use std::sync::Arc;
 use std::str::FromStr;
-use tokio_core::reactor;
 use url::Url;
 use regex::Regex;
 
-use termcolor::{ColorSpec,WriteColor};
+use termcolor::{ColorSpec, WriteColor};
 use termcolor::Color::*;
 use std::io::Write;
 
@@ -50,8 +50,10 @@ macro_rules! format_colored{
     };
 }
 
-lazy_static!{
-    static ref COLOR_OUTPUT: Arc<termcolor::BufferWriter> = Arc::new(termcolor::BufferWriter::stdout(termcolor::ColorChoice::Always));
+lazy_static! {
+    static ref COLOR_OUTPUT: Arc<termcolor::BufferWriter> = Arc::new(termcolor::BufferWriter::stdout(
+        termcolor::ColorChoice::Always
+    ));
     static ref INFO_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
         spec.set_fg(Some(Cyan)).set_bold(true).set_intense(true);
@@ -89,19 +91,23 @@ struct ModVersionInfo {
     game_versions: Vec<semver::Version>,
 }
 
-#[derive(PartialEq,Eq)]
-enum Response{
+#[derive(PartialEq, Eq)]
+enum Response {
     Yes,
     No,
 }
 
 //FIXME: seems to always return the default
-fn prompt_yes_no(default: Response) -> Response{
+fn prompt_yes_no(default: Response) -> Response {
     let mut line = String::new();
-    std::io::stdin().read_line(&mut line).expect("Failed to read line");
-    let res = alt_complete!(line.as_str(),
-          map!(re_match!(r"(?i)Y|Yes"), |_| Response::Yes)
-        | map!(re_match!(r"(?i)N|No"),  |_| Response::No)
+    std::io::stdin()
+        .read_line(&mut line)
+        .expect("Failed to read line");
+    let res = alt_complete!(
+        line.as_str(),
+        map!(re_match!(r"(?i)Y|Yes"), |_| Response::Yes) | map!(re_match!(r"(?i)N|No"), |_| {
+            Response::No
+        })
     );
     res.to_result().unwrap_or_else(|_| default)
 }
@@ -112,14 +118,15 @@ fn extract_version_and_id(url: &str) -> (u64, &str) {
         project: take_till_s!(|c: char| c=='/') >>
         tag_s!("/files/") >>
         ver: map_res!(take_while_s!(|c: char| c.is_digit(10)),u64::from_str) >>
-		opt!(tag_s!("/download")) >>
+        opt!(tag_s!("/download")) >>
         ((ver,project))
     };
     res.to_result().expect("Unknown modsource url")
 }
 
 fn get_attr<N>(node: N, name: &str) -> Option<String>
-    where N: Borrow<NodeDataRef<ElementData>>
+where
+    N: Borrow<NodeDataRef<ElementData>>,
 {
     node.borrow()
         .attributes
@@ -128,25 +135,28 @@ fn get_attr<N>(node: N, name: &str) -> Option<String>
         .map(|s| s.to_owned())
 }
 
-fn find_most_recent
-    (project_name: String,
-     target_game_version: semver::VersionReq,
-     http_client: HttpSimple,
-     target_release_status: ReleaseStatus)
-     -> impl Future<Item = Option<ModVersionInfo>, Error = ::Error>{
-
-    lazy_static!{
-        static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)").expect("Couldn't compie pre-checked regex");
+fn find_most_recent(
+    project_name: String,
+    target_game_version: semver::VersionReq,
+    http_client: HttpSimple,
+    target_release_status: ReleaseStatus,
+) -> impl Future<Item = Option<ModVersionInfo>, Error = ::Error> + Send {
+    lazy_static! {
+        static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)")
+            .expect("Couldn't compie pre-checked regex");
     }
 
-    const BASE_URL: & str = "https://minecraft.curseforge.com";
+    const BASE_URL: &str = "https://minecraft.curseforge.com";
     let base_url = Url::parse(BASE_URL).unwrap();
-    let scrape_url = base_url.join(&format!("/projects/{}/files", project_name)).unwrap();
+    let scrape_url = base_url
+        .join(&format!("/projects/{}/files", project_name))
+        .unwrap();
     async_block!{
         let uri = ::util::url_to_uri(&scrape_url)?;
         let body = await!(http_client.get(uri)
+                .map_err(::Error::from)
                 .and_then(move |res| {
-                    res.body().fold(vec![],
+                    res.into_body().map_err(::Error::from).fold(vec![],
                                     move |mut buf, chunk| -> Result<Vec<u8>, std::io::Error> {
                                         std::io::copy(&mut Cursor::new(chunk), &mut buf)?;
                                         Ok(buf)
@@ -189,7 +199,7 @@ fn find_most_recent
                 .next()
                 .unwrap();
             let mut game_versions: Vec<semver::Version> = vec![];
-            if version_container.has_class(&("multiple".into())){
+            if version_container.has_class(&("multiple".into()),CaseSensitivity::CaseSensitive){
                 let additional_versions = version_container.as_node().select(".additional-versions")
                     .map_err(|_| ::Error::Selector)?
                     .next()
@@ -242,55 +252,57 @@ fn find_most_recent
     }
 }
 
-use ::curseforge;
-use ::types::{ModSource, ModpackConfig};
+use curseforge;
+use types::{ModSource, ModpackConfig};
 
-pub fn check(target_game_version: &semver::VersionReq, pack_path: String, mut pack: ModpackConfig, handle: &reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
-    let http_client = HttpSimple::new(handle);
+pub fn check(
+    target_game_version: &semver::VersionReq,
+    pack_path: String,
+    mut pack: ModpackConfig,
+) -> impl Future<Item = (), Error = ::Error> + Send + 'static {
+    let http_client = HttpSimple::new();
 
-    let check_futures:Vec<_> = pack.mods.clone().into_iter()
+    let check_futures: Vec<_> = pack.mods
+        .clone()
+        .into_iter()
         .map(|modd| match modd {
             ModSource::CurseforgeMod(curse_mod) => {
                 let http_client_handle = http_client.clone();
                 let captured_target_game_version = target_game_version.clone();
-                Box::new(
-                    async_block!{
-                        let found = await!(find_most_recent(curse_mod.id.clone(),
-                                          captured_target_game_version.clone(),
-                                          http_client_handle,
-                                          ReleaseStatus::Alpha))?;
-                        if let Some(found) = found {
-                            format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
-                            assert_eq!(curse_mod.id, found.id);
-                            if found.release_status != ReleaseStatus::Release {
-                                let a_an = if found.release_status == ReleaseStatus::Alpha{
-                                    "an"
-                                }else if found.release_status == ReleaseStatus::Beta{
-                                    "a"
-                                }else{
-                                    unreachable!("Status was not release, alpha, or beta")
-                                };
-                                format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)\n", a_an, found.release_status.value() } );
-                            }else{
-                                format_colored!((*COLOR_OUTPUT); "\n" );
-                            }
-                            Ok((curse_mod.into(),Some(found.release_status)))
-                        } else {
-                            format_colored!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
-                            Ok((curse_mod.into(),None))
-                        }
-                    }
-                    
-                ) as
-                Box<Future<Item = (ModSource,Option<ReleaseStatus>), Error = ::Error>>
-            }
-            ModSource::MavenMod { artifact, repo } => {
                 Box::new(async_block!{
-                    format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"you must check maven mod: {:?}",artifact});
-                    Ok((ModSource::MavenMod { artifact, repo },None))
+                    let found = await!(find_most_recent(curse_mod.id.clone(),
+                                      captured_target_game_version.clone(),
+                                      http_client_handle,
+                                      ReleaseStatus::Alpha))?;
+                    if let Some(found) = found {
+                        format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
+                        assert_eq!(curse_mod.id, found.id);
+                        if found.release_status != ReleaseStatus::Release {
+                            let a_an = if found.release_status == ReleaseStatus::Alpha{
+                                "an"
+                            }else if found.release_status == ReleaseStatus::Beta{
+                                "a"
+                            }else{
+                                unreachable!("Status was not release, alpha, or beta")
+                            };
+                            format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)\n", a_an, found.release_status.value() } );
+                        }else{
+                            format_colored!((*COLOR_OUTPUT); "\n" );
+                        }
+                        Ok((curse_mod.into(),Some(found.release_status)))
+                    } else {
+                        format_colored!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
+                        Ok((curse_mod.into(),None))
+                    }
                 })
+                    as Box<Future<Item = (ModSource, Option<ReleaseStatus>), Error = ::Error> + Send>
             }
-        }).collect();
+            ModSource::MavenMod { artifact, repo } => Box::new(async_block!{
+                format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"you must check maven mod: {:?}",artifact});
+                Ok((ModSource::MavenMod { artifact, repo },None))
+            }),
+        })
+        .collect();
 
     async_block!{
         let mut total = 0usize;
@@ -380,8 +392,13 @@ pub fn check(target_game_version: &semver::VersionReq, pack_path: String, mut pa
     }
 }
 
-pub fn run(target_game_version: semver::VersionReq, pack_path: String, mut pack: ModpackConfig, release_status: ReleaseStatus, handle: &reactor::Handle) -> impl Future<Item=(),Error=::Error> + 'static{
-    let http_client = HttpSimple::new(handle);
+pub fn run(
+    target_game_version: semver::VersionReq,
+    pack_path: String,
+    mut pack: ModpackConfig,
+    release_status: ReleaseStatus,
+) -> impl Future<Item = (), Error = ::Error>  + Send + 'static {
+    let http_client = HttpSimple::new();
 
     async_block!{
         let mut new_mods = vec![];
@@ -435,7 +452,7 @@ pub fn run(target_game_version: semver::VersionReq, pack_path: String, mut pack:
         }
 
         let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
-		pack.save(&mut file)?;
+        pack.save(&mut file)?;
         Ok(())
     }
 }

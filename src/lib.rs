@@ -1,22 +1,23 @@
-#![feature(custom_derive,slice_patterns,conservative_impl_trait,never_type,generators,proc_macro)]
+#![feature(custom_derive, slice_patterns, never_type, generators, proc_macro, proc_macro_non_items)]
 
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
+extern crate failure;
+extern crate http;
 extern crate hyper;
 extern crate hyper_tls;
-extern crate url;
+extern crate serde_json;
 extern crate sha1;
-extern crate failure;
+extern crate url;
 #[macro_use]
 extern crate failure_derive;
-extern crate tokio_core;
 extern crate semver;
+extern crate tokio;
 #[macro_use]
 extern crate slog;
+extern crate futures_await as futures;
 extern crate time;
 extern crate zip;
-extern crate futures_await as futures;
 #[macro_use]
 extern crate nom;
 extern crate kuchiki;
@@ -26,6 +27,7 @@ extern crate lazy_static;
 extern crate termcolor;
 //FIXME: has_class in kuchiki should probably not require selectors to be imported
 //       maybe file a bug for this
+extern crate chrono;
 extern crate selectors;
 
 pub mod cache;
@@ -52,13 +54,13 @@ macro_rules! die{
 }
 
 #[derive(Debug, Fail)]
-pub enum Error{
+pub enum Error {
     #[fail(display = "Download error: {}", _0)]
     Download(#[cause] download::Error),
     #[fail(display = "IO error: {}", _0)]
     Io(#[cause] ::std::io::Error),
     #[fail(display = "Uri error: {}", _0)]
-    Uri(#[cause] hyper::error::UriError),
+    Uri(#[cause] http::uri::InvalidUri),
     #[fail(display = "Hyper error: {}", _0)]
     Hyper(#[cause] hyper::Error),
     #[fail(display = "Zip error: {}", _0)]
@@ -70,57 +72,53 @@ pub enum Error{
     #[fail(display = "couldn't compile selector")]
     Selector,
     #[fail(display = "unknown url scheme: '{}'", scheme)]
-    UnknownScheme{
-        scheme: String
-    },
+    UnknownScheme { scheme: String },
     #[fail(display = "Couldn't parse mod url: '{}'", url)]
-    BadModUrl{
-        url: String
-    }
+    BadModUrl { url: String },
 }
 
-pub type Result<T> = ::std::result::Result<T,::Error>;
+pub type Result<T> = ::std::result::Result<T, ::Error>;
 
-impl From<!> for Error{
-    fn from(never:!)->Self{
+impl From<!> for Error {
+    fn from(never: !) -> Self {
         never
     }
 }
 
-impl From<hyper::error::UriError> for Error{
-    fn from(err: hyper::error::UriError)->Self{
+impl From<http::uri::InvalidUri> for Error {
+    fn from(err: http::uri::InvalidUri) -> Self {
         Error::Uri(err)
     }
 }
 
-impl From<hyper::Error> for Error{
-    fn from(err: hyper::Error)->Self{
+impl From<hyper::Error> for Error {
+    fn from(err: hyper::Error) -> Self {
         Error::Hyper(err)
     }
 }
 
-impl From<zip::result::ZipError> for Error{
-    fn from(err: zip::result::ZipError)->Self{
+impl From<zip::result::ZipError> for Error {
+    fn from(err: zip::result::ZipError) -> Self {
         Error::Zip(err)
     }
 }
 
-impl From<serde_json::Error> for Error{
-    fn from(err: serde_json::Error)->Self{
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
         Error::Json(err)
     }
 }
 
-impl From<download::Error> for Error{
-    fn from(err: download::Error)->Self{
+impl From<download::Error> for Error {
+    fn from(err: download::Error) -> Self {
         Error::Download(err)
     }
 }
 
-impl From<std::io::Error> for Error{
-    fn from(err: std::io::Error)->Self{
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
         Error::Io(err)
     }
 }
 
-pub type BoxFuture<I> = Box<futures::Future<Item = I, Error = Error>>;
+pub type BoxFuture<I> = Box<futures::Future<Item = I, Error = Error> + Send + 'static>;

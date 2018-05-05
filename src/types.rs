@@ -3,15 +3,14 @@ use curseforge;
 use download::{self, DownloadManager, Downloadable};
 use forge_version;
 use futures::prelude::*;
-use hyper::Uri;
+use http::{self, Uri};
 use maven::{MavenArtifact, ResolvedArtifact};
 use slog::Logger;
-use std::io::{Read, Write, Cursor};
+use std::io::{Cursor, Read, Write};
 use std::path::PathBuf;
-use tokio_core::reactor::Handle;
 use semver;
 
-#[derive(Debug,PartialEq,Eq,Clone,Copy,Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum ReleaseStatus {
     Release,
     Beta,
@@ -31,8 +30,7 @@ impl ReleaseStatus {
     }
 
     pub fn accepts(&self, other: &ReleaseStatus) -> bool {
-        other == self ||
-        match *self {
+        other == self || match *self {
             ReleaseStatus::Release => false,
             ReleaseStatus::Beta => ReleaseStatus::Release.accepts(other),
             ReleaseStatus::Alpha => ReleaseStatus::Beta.accepts(other),
@@ -52,7 +50,7 @@ impl FromStr for ReleaseStatus {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug,Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ModSource {
     CurseforgeMod(curseforge::Mod),
     MavenMod {
@@ -61,54 +59,55 @@ pub enum ModSource {
     },
 }
 
-impl ModSource{
-	pub fn version_string(&self) -> String{
-        match *self{
+impl ModSource {
+    pub fn version_string(&self) -> String {
+        match *self {
             ModSource::CurseforgeMod(ref modd) => modd.version.to_string(),
-            ModSource::MavenMod{ref artifact,..} => artifact.version.to_string(),
+            ModSource::MavenMod { ref artifact, .. } => artifact.version.to_string(),
         }
     }
-    pub fn identifier_string(&self) -> String{
-        match *self{
+    pub fn identifier_string(&self) -> String {
+        match *self {
             ModSource::CurseforgeMod(ref modd) => modd.id.clone(),
-            ModSource::MavenMod{ref artifact,..} => artifact.to_string(),
+            ModSource::MavenMod { ref artifact, .. } => artifact.to_string(),
         }
     }
-    pub fn guess_project_url(&self) -> Option<String>{
-        match *self{
-            ModSource::CurseforgeMod(ref modd) => modd.project_uri().map(|uri| uri.to_string()).ok(),
-            ModSource::MavenMod{..} => None,
+    pub fn guess_project_url(&self) -> Option<String> {
+        match *self {
+            ModSource::CurseforgeMod(ref modd) => {
+                modd.project_uri().map(|uri| uri.to_string()).ok()
+            }
+            ModSource::MavenMod { .. } => None,
         }
     }
 }
 
 impl Downloadable for ModSource {
-    fn download(self,
-                location: PathBuf,
-                manager: DownloadManager,
-                log: Logger)
-                -> download::BoxFuture<()> {
+    fn download(
+        self,
+        location: PathBuf,
+        manager: DownloadManager,
+        log: Logger,
+    ) -> download::BoxFuture<()> {
         match self {
             ModSource::CurseforgeMod(modd) => {
                 curseforge::Cache::install_at(modd, location, manager, log)
             }
-            ModSource::MavenMod { repo, artifact } => {
-                Box::new(async_block!{
-                        let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
-                        Ok(await!(artifact.download_from(location.as_ref(), repo, &manager, log))?)
-                })
-            }
+            ModSource::MavenMod { repo, artifact } => Box::new(async_block!{
+                let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
+                Ok(await!(artifact.download_from(location.as_ref(), repo, manager, log))?)
+            }),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum OS {
-    #[serde(rename="osx")]
+    #[serde(rename = "osx")]
     X,
-    #[serde(rename="windows")]
+    #[serde(rename = "windows")]
     Windows,
-    #[serde(rename="linux")]
+    #[serde(rename = "linux")]
     Linux,
 }
 
@@ -129,9 +128,9 @@ impl OSSpec {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Action {
-    #[serde(rename="allow")]
+    #[serde(rename = "allow")]
     Allow,
-    #[serde(rename="disallow")]
+    #[serde(rename = "disallow")]
     Disallow,
 }
 
@@ -184,14 +183,15 @@ impl MCLibraryListing {
     }
 }
 
-const MC_LIBS_MAVEN: & str = "https://libraries.minecraft.net/";
+const MC_LIBS_MAVEN: &str = "https://libraries.minecraft.net/";
 
 impl Downloadable for MCLibraryListing {
-    fn download(self,
-                mut location: PathBuf,
-                manager: DownloadManager,
-                log: Logger)
-                -> download::BoxFuture<()> {
+    fn download(
+        self,
+        mut location: PathBuf,
+        manager: DownloadManager,
+        log: Logger,
+    ) -> download::BoxFuture<()> {
         Box::new(async_block!{
             let resolved_artifact = if self.is_native() {
                 let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
@@ -227,16 +227,16 @@ impl Downloadable for MCLibraryListing {
 pub struct MCVersionInfo {
     pub id: String,
     pub time: String,
-    #[serde(rename="releaseTime")]
+    #[serde(rename = "releaseTime")]
     pub release_time: String,
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     pub type_: String,
-    #[serde(rename="minecraftArguments")]
+    #[serde(rename = "minecraftArguments")]
     pub minecraft_arguments: String,
     pub libraries: Vec<MCLibraryListing>,
-    #[serde(rename="mainClass")]
+    #[serde(rename = "mainClass")]
     pub main_class: String,
-    #[serde(rename="minimumLauncherVersion")]
+    #[serde(rename = "minimumLauncherVersion")]
     pub minimum_launcher_version: i64,
     pub assets: String,
 }
@@ -249,26 +249,33 @@ use std::string::String;
 pub type ModList = Vec<ModSource>;
 
 impl MCVersionInfo {
-    pub fn version(handle: &Handle, ver: &str) -> ::BoxFuture<MCVersionInfo> {
-        let client = hyper::Client::new(handle);
-        let uri = Uri::from_str(format!("http://s3.amazonaws.com/Minecraft.\
-                                         Download/versions/{0}/{0}.json",
-                                        ver)
-                .as_str())
-            .unwrap();
-        Box::new(client.get(uri)
-            .and_then(|res| {
-                res.body()
-                    .fold(vec![], |mut buf, chunk| -> Result<Vec<u8>, hyper::Error> {
-                        Cursor::new(chunk).read_to_end(&mut buf)?;
-                        Ok(buf)
-                    })
-            })
-            .map_err(::Error::from)
-            .and_then(|buf| {
-                let info: MCVersionInfo = serde_json::de::from_reader(Cursor::new(buf))?;
-                Ok(info)
-            })) as ::BoxFuture<MCVersionInfo>
+    pub fn version(ver: &str) -> ::BoxFuture<MCVersionInfo> {
+        let client = hyper::Client::new();
+        let uri = Uri::from_str(
+            format!(
+                "http://s3.amazonaws.com/Minecraft.\
+                 Download/versions/{0}/{0}.json",
+                ver
+            ).as_str(),
+        ).unwrap();
+        Box::new(
+            client
+                .get(uri)
+                .map_err(::Error::from)
+                .and_then(|res| {
+                    res.into_body().map_err(::Error::from).fold(
+                        vec![],
+                        |mut buf, chunk| -> Result<Vec<u8>, ::Error> {
+                            Cursor::new(chunk).read_to_end(&mut buf)?;
+                            Ok(buf)
+                        },
+                    )
+                })
+                .and_then(|buf| {
+                    let info: MCVersionInfo = serde_json::de::from_reader(Cursor::new(buf))?;
+                    Ok(info)
+                }),
+        ) as ::BoxFuture<MCVersionInfo>
     }
 }
 
@@ -285,15 +292,14 @@ impl ModpackConfig {
     pub fn folder(&self) -> String {
         self.name.replace(|c: char| !c.is_alphanumeric(), "_")
     }
-    pub fn forge_maven_artifact(&self) -> Result<ResolvedArtifact, hyper::error::UriError> {
+    pub fn forge_maven_artifact(&self) -> Result<ResolvedArtifact, http::uri::InvalidUri> {
         Ok(MavenArtifact {
-                group: "net.minecraftforge".into(),
-                artifact: "forge".into(),
-                version: self.forge.clone(),
-                classifier: Some("universal".into()),
-                extension: Some("jar".into()),
-            }
-            .resolve(Uri::from_str(forge_version::BASE_URL)?))
+            group: "net.minecraftforge".into(),
+            artifact: "forge".into(),
+            version: self.forge.clone(),
+            classifier: Some("universal".into()),
+            extension: Some("jar".into()),
+        }.resolve(Uri::from_str(forge_version::BASE_URL)?))
     }
     pub fn replace_mod(&mut self, modsource: ModSource) {
         match modsource {
@@ -301,9 +307,13 @@ impl ModpackConfig {
                 let new_id = id;
                 let mut old_mods = vec![];
                 ::std::mem::swap(&mut self.mods, &mut old_mods);
-                self.mods = old_mods.into_iter()
+                self.mods = old_mods
+                    .into_iter()
                     .filter(|source| match *source {
-                        ModSource::CurseforgeMod(curseforge::Mod { ref id, ref version }) => {
+                        ModSource::CurseforgeMod(curseforge::Mod {
+                            ref id,
+                            ref version,
+                        }) => {
                             if id == new_id {
                                 println!("removing old version ({})", version);
                                 false
@@ -322,33 +332,39 @@ impl ModpackConfig {
 
         self.mods.push(modsource);
     }
-	pub fn add_mod_by_url(&mut self, mod_url: &str) -> ::Result<()>{		
-		let modsource: ModSource = complete!(&mod_url,do_parse!(
-			tag_s!("https://minecraft.curseforge.com/projects/") >>
-			id: take_till_s!(|c: char| c=='/') >>
-			tag_s!("/files/") >>
-			version: map_res!(take_while_s!(|c: char| c.is_digit(10)),u64::from_str) >>
-			opt!(tag_s!("/download")) >>
-			(curseforge::Mod{
-				id: id.to_owned(),
-				version
-			}.into())
-		)).to_full_result().map_err(|_| ::Error::BadModUrl{url: mod_url.to_owned()})?;
+    pub fn add_mod_by_url(&mut self, mod_url: &str) -> ::Result<()> {
+        let modsource: ModSource = complete!(
+            &mod_url,
+            do_parse!(
+                tag_s!("https://minecraft.curseforge.com/projects/")
+                    >> id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/")
+                    >> version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str)
+                    >> opt!(tag_s!("/download")) >> (curseforge::Mod {
+                    id: id.to_owned(),
+                    version,
+                }.into())
+            )
+        ).to_full_result()
+            .map_err(|_| ::Error::BadModUrl {
+                url: mod_url.to_owned(),
+            })?;
 
-		self.replace_mod(modsource);
+        self.replace_mod(modsource);
 
-		Ok(())
-	}
-	
-	pub fn load<R>(reader: R) -> ::Result<Self>
-		where R: Read
-	{
-		Ok(serde_json::de::from_reader(reader)?)
-	}
-	
-	pub fn save<W>(&self,writer: &mut W) -> ::Result<()>
-		where W: Write
-	{
-		Ok(serde_json::ser::to_writer_pretty(writer, &self)?)
-	}
+        Ok(())
+    }
+
+    pub fn load<R>(reader: R) -> ::Result<Self>
+    where
+        R: Read,
+    {
+        Ok(serde_json::de::from_reader(reader)?)
+    }
+
+    pub fn save<W>(&self, writer: &mut W) -> ::Result<()>
+    where
+        W: Write,
+    {
+        Ok(serde_json::ser::to_writer_pretty(writer, &self)?)
+    }
 }

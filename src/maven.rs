@@ -45,8 +45,8 @@ impl MavenCache {
     }
 
     pub fn with(artifact: &ResolvedArtifact,
-                manager: &DownloadManager,
-                log: &Logger)
+                manager: DownloadManager,
+                log: Logger)
                 -> download::BoxFuture<PathBuf> {
         let cached_path = Self::cached_path(&artifact.artifact);
         let log = log.new(o!("artifact"=>artifact.artifact.to_string(),"repo"=>artifact.repo.to_string(),"cached_path"=>cached_path.as_path().to_string_lossy().into_owned()));
@@ -88,7 +88,7 @@ impl MavenCache {
 
                 let sha_uri = sha_url_res?;
                 let (res,_) = await!(manager.get(sha_uri)?)?;
-                let hash_str = await!(res.body()
+                let hash_str = await!(res.into_body()
                     .map_err(download::Error::from)
                     .fold(String::new(),
                             |mut buf, chunk| -> Result<String, download::Error> {
@@ -107,12 +107,12 @@ impl MavenCache {
     }
 
     // FIXME Annoying work around for the forge libs not really being where they claim to be
-    fn install_at_no_classifier<'a>(artifact: ResolvedArtifact,
+    fn install_at_no_classifier(artifact: ResolvedArtifact,
                                     mut location: PathBuf,
-                                    manager: &DownloadManager,
+                                    manager: DownloadManager,
                                     log: Logger)
-                                    -> impl Future<Item = (), Error = ::download::Error> + 'a {
-        Self::with(&artifact, manager, &log).and_then(move |cached_path| {
+                                    -> impl Future<Item = (), Error = ::download::Error> + Send {
+        Self::with(&artifact, manager, log.clone()).and_then(move |cached_path| {
             let ResolvedArtifact { artifact, repo } = artifact;
             let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
             info!(log, "installing maven artifact");
@@ -124,17 +124,17 @@ impl MavenCache {
             fs::create_dir_all(location.to_owned())?;
 
             cached_path_no_classifier.file_name().map(|n| location.push(n));
-            util::symlink(cached_path, location, &log)?;
+            util::symlink(cached_path, location, log)?;
             Ok(())
         })
     }
 
-    fn install_at<'a>(artifact: ResolvedArtifact,
+    fn install_at(artifact: ResolvedArtifact,
                       mut location: PathBuf,
-                      manager: &DownloadManager,
+                      manager: DownloadManager,
                       log: Logger)
-                      -> impl Future<Item = (), Error = ::download::Error> + 'a {
-        Self::with(&artifact, manager, &log).and_then(move |cached_path| {
+                      -> impl Future<Item = (), Error = ::download::Error> + Send {
+        Self::with(&artifact, manager, log.clone()).and_then(move |cached_path| {
             let ResolvedArtifact { artifact, repo } = artifact;
             let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
             info!(log, "installing maven artifact");
@@ -142,7 +142,7 @@ impl MavenCache {
             fs::create_dir_all(location.to_owned())?;
 
             cached_path.file_name().map(|n| location.push(n));
-            util::symlink(cached_path, location, &log)?;
+            util::symlink(cached_path, location, log)?;
             Ok(())
         })
     }
@@ -192,12 +192,12 @@ impl MavenArtifact {
         }
     }
 
-    pub fn download_from<'a>(&self,
+    pub fn download_from(&self,
                              location: &Path,
                              repo_uri: Uri,
-                             manager: &DownloadManager,
+                             manager: DownloadManager,
                              log: Logger)
-                             -> impl Future<Item = (), Error = ::download::Error> + 'a {
+                             -> impl Future<Item = (), Error = ::download::Error> + Send {
         MavenCache::install_at(self.resolve(repo_uri), location.to_owned(), manager, log)
     }
 }
@@ -218,21 +218,21 @@ impl ResolvedArtifact {
     }
     pub fn install_at(&self,
                       location: &Path,
-                      manager: &DownloadManager,
+                      manager: DownloadManager,
                       log: Logger)
                       -> download::BoxFuture<()> {
-        Box::new(MavenCache::install_at((*self).clone(), location.to_owned(), manager, log))
+        Box::new(MavenCache::install_at((*self).clone(), location.to_owned(), manager.clone(), log))
     }
     pub fn reader(&self,
-                  manager: &DownloadManager,
-                  log: &Logger)
+                  manager: DownloadManager,
+                  log: Logger)
                   -> download::BoxFuture<::std::fs::File> {
         Box::new(MavenCache::with(self, manager, log)
             .and_then(move |path| Ok(::std::fs::File::open(path)?)))
     }
     pub fn install_at_no_classifier(&self,
                                     location: &Path,
-                                    manager: &DownloadManager,
+                                    manager: DownloadManager,
                                     log: Logger)
                                     -> download::BoxFuture<()> {
         Box::new(MavenCache::install_at_no_classifier((*self).clone(),
@@ -248,7 +248,7 @@ impl Downloadable for ResolvedArtifact {
                 manager: DownloadManager,
                 log: Logger)
                 -> download::BoxFuture<()> {
-        Box::new(MavenCache::install_at(self, location, &manager, log))
+        Box::new(MavenCache::install_at(self, location, manager, log))
     }
 }
 

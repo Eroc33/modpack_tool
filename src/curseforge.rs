@@ -1,8 +1,8 @@
-use hyper::{self, Uri};
+use http::{self, Uri};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-const CACHE_DIR: & str = "./curse_cache/";
+const CACHE_DIR: &str = "./curse_cache/";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mod {
@@ -12,10 +12,9 @@ pub struct Mod {
 
 pub type Cache = ::cache::FolderCache;
 
-impl Mod{
-    pub fn project_uri(&self) -> Result<Uri, hyper::error::UriError> {
-        let loc = format!("https://minecraft.curseforge.com/projects/{}/",
-                          self.id);
+impl Mod {
+    pub fn project_uri(&self) -> Result<Uri, http::uri::InvalidUri> {
+        let loc = format!("https://minecraft.curseforge.com/projects/{}/", self.id);
         Ok(Uri::from_str(&loc)?)
     }
 }
@@ -29,10 +28,12 @@ impl ::cache::Cacheable for Mod {
         p
     }
 
-    fn uri(&self) -> Result<Uri, hyper::error::UriError> {
-        let loc = format!("https://minecraft.curseforge.com/projects/{}/files/{}/download",
-                          self.id,
-                          self.version.to_string());
+    fn uri(&self) -> Result<Uri, http::uri::InvalidUri> {
+        let loc = format!(
+            "https://minecraft.curseforge.com/projects/{}/files/{}/download",
+            self.id,
+            self.version.to_string()
+        );
         Ok(Uri::from_str(&loc)?)
     }
 }
