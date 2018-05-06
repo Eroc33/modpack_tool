@@ -21,20 +21,13 @@ use modpack_tool::hacks;
 use modpack_tool::maven;
 use modpack_tool::upgrade;
 use modpack_tool::types::*;
+use modpack_tool::cache::Cacheable;
 
 use slog::{Drain, Logger};
 
 use std::fs;
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-
-fn load_pack<R>(reader: R) -> serde_json::Result<ModpackConfig>
-where
-    R: Read,
-{
-    serde_json::de::from_reader(reader)
-}
 
 fn add_launcher_profile(
     pack_path: PathBuf,
@@ -183,7 +176,7 @@ fn install_forge(
         mc_path.push(forge_maven_artifact_path);
         mc_path.pop(); //pop the filename
 
-        await!(forge_artifact.install_at_no_classifier(&mc_path, manager, log))?;
+        await!(forge_artifact.install_at_no_classifier(mc_path, manager, log))?;
         Ok(VersionId(version_id))
     })
 }
@@ -210,9 +203,8 @@ fn update(path: String, log: Logger) -> BoxFuture<()> {
     info!(log, "loading pack config");
     Box::new(async_block!{
         let file = std::fs::File::open(path)?;
-        let modpack = load_pack(file);
+        let pack = ModpackConfig::load(file)?;
         let mut pack_path = PathBuf::from(".");
-        let pack = modpack?;
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());
         let ModpackConfig { name: pack_name, mods, .. } = pack;

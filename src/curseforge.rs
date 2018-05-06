@@ -1,6 +1,7 @@
 use http::{self, Uri};
 use std::path::PathBuf;
 use std::str::FromStr;
+use download;
 
 const CACHE_DIR: &str = "./curse_cache/";
 
@@ -20,6 +21,7 @@ impl Mod {
 }
 
 impl ::cache::Cacheable for Mod {
+    type Cache = ::cache::FolderCache;
     fn cached_path(&self) -> PathBuf {
         let mut p = PathBuf::new();
         p.push(CACHE_DIR);
@@ -28,7 +30,7 @@ impl ::cache::Cacheable for Mod {
         p
     }
 
-    fn uri(&self) -> Result<Uri, http::uri::InvalidUri> {
+    fn uri(&self) -> Result<Uri, download::Error> {
         let loc = format!(
             "https://minecraft.curseforge.com/projects/{}/files/{}/download",
             self.id,

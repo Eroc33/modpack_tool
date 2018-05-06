@@ -186,40 +186,40 @@ impl MCLibraryListing {
 const MC_LIBS_MAVEN: &str = "https://libraries.minecraft.net/";
 
 impl Downloadable for MCLibraryListing {
+    #[async(boxed_send)]
     fn download(
         self,
         mut location: PathBuf,
         manager: DownloadManager,
         log: Logger,
-    ) -> download::BoxFuture<()> {
-        Box::new(async_block!{
-            let resolved_artifact = if self.is_native() {
-                let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
-                let disallowed = if let Some(ref rules) = self.rules {
-                    rules.into_iter()
-                        .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
-                } else {
-                    false
-                };
-                if disallowed {
-                    None //nothing to download
-                } else {
-                    artifact.classifier = self.platform_native_classifier();
-                    let base = Uri::from_str(MC_LIBS_MAVEN)?;
-                    Some(artifact.resolve(base))
-                }
+    ) -> download::Result<()> {
+        let resolved_artifact = if self.is_native() {
+            let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
+            let disallowed = if let Some(ref rules) = self.rules {
+                rules
+                    .into_iter()
+                    .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
             } else {
-                let artifact = self.name.parse::<MavenArtifact>().unwrap();
+                false
+            };
+            if disallowed {
+                None //nothing to download
+            } else {
+                artifact.classifier = self.platform_native_classifier();
                 let base = Uri::from_str(MC_LIBS_MAVEN)?;
                 Some(artifact.resolve(base))
-            };
-            if let Some(resolved_artifact) = resolved_artifact {
-                location.push(resolved_artifact.to_path());
-                Ok(await!(resolved_artifact.download(location, manager, log))?)
-            } else {
-                Ok(())
             }
-        })
+        } else {
+            let artifact = self.name.parse::<MavenArtifact>().unwrap();
+            let base = Uri::from_str(MC_LIBS_MAVEN)?;
+            Some(artifact.resolve(base))
+        };
+        if let Some(resolved_artifact) = resolved_artifact {
+            location.push(resolved_artifact.to_path());
+            Ok(await!(resolved_artifact.download(location, manager, log))?)
+        } else {
+            Ok(())
+        }
     }
 }
 

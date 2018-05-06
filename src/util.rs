@@ -1,17 +1,17 @@
 use download;
-use futures::future;
 use futures::prelude::*;
 
 use hyper;
-use hyper::Uri;
+use http::Uri;
 use slog::Logger;
-use std::fs::File;
-use std::io::{self, Cursor, Read};
+use std;
+use std::io::{self, Cursor};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::io::copy;
 use chrono::DateTime;
 use chrono::offset::Utc;
+use tokio;
+use tokio::prelude::AsyncRead;
 
 use url::Url;
 
@@ -31,29 +31,51 @@ where
     S: Stream<Item = hyper::Chunk> + Send,
     S::Error: Into<download::Error>,
 {
-    future::result(File::create(path))
+    tokio::fs::File::create(path)
         .map_err(download::Error::from)
         .and_then(move |file| {
             stream
                 .map_err(Into::into)
-                .fold(file, |mut file, chunk| -> Result<File, download::Error> {
-                    io::copy(&mut Cursor::new(chunk), &mut file)?;
-                    Ok(file)
+                .fold(file, |file, chunk|{
+                    tokio::io::copy(Cursor::new(chunk), file)
+                    .map_err(download::Error::from)
+                    .map(|(_n,_r,w)| w)
                 })
                 .map(|_| ())
         })
 }
 
-pub fn save_file<R>(mut reader: R, path: &Path) -> impl Future<Item = u64, Error = io::Error> + Send
+pub fn save_file<R>(reader: R, path: PathBuf) -> impl Future<Item = u64, Error = download::Error> + Send
 where
-    R: Read + Send,
+    R: AsyncRead + Send,
 {
-    future::result(File::create(path)).and_then(move |mut file| copy(&mut reader, &mut file))
+    tokio::fs::File::create(path)
+        .map_err(download::Error::from)
+        .and_then(move |file|{
+            tokio::io::copy(reader, file)
+            .map_err(download::Error::from)
+            .map(|(n,_r,_w)| n)
+        })
 }
 
 pub fn file_timestamp<P: AsRef<Path>>(path: P) -> download::Result<DateTime<Utc>> {
     let metadata = path.as_ref().metadata()?;
     Ok(metadata.modified()?.into())
+}
+
+#[derive(Debug,Fail)]
+pub enum SymlinkError{
+    #[fail(display="{}",_0)]
+    Io(#[cause]std::io::Error),
+    #[fail(display="The target of the symlink already exists")]
+    AlreadyExists
+}
+
+impl From<std::io::Error> for SymlinkError{
+    fn from(err: std::io::Error) -> Self
+    {
+        SymlinkError::Io(err)
+    }
 }
 
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
@@ -64,8 +86,8 @@ use std::fmt::Debug;
 pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
     src: P,
     dst: Q,
-    log: Logger,
-) -> io::Result<()> {
+    log: &Logger,
+) -> Result<(),SymlinkError> {
     info!(log, "symlinking {:?} to {:?}", src, dst);
     if SYMLINKS_BLOCKED.load(Ordering::Acquire) {
         warn!(log, "symlink permission denied, falling back to copy");
@@ -76,8 +98,7 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
             //if the file already exists
             #[cfg(windows)]
             Err(ref e) if e.raw_os_error() == Some(183) => {
-                warn!(log, "File Exists, assuming content is correct");
-                Ok(())
+                Err(SymlinkError::AlreadyExists)
             }
             // if the symlink failed due to permission denied
             #[cfg(windows)]
@@ -87,7 +108,8 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
                 ::std::fs::copy(src, dst)?;
                 Ok(())
             }
-            other => other,
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.into())
         }
     }
 }

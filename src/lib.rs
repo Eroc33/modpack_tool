@@ -1,29 +1,24 @@
 #![feature(custom_derive, slice_patterns, never_type, generators, proc_macro, proc_macro_non_items)]
 
-#[macro_use]
-extern crate serde_derive;
-extern crate failure;
-extern crate http;
+#[macro_use] extern crate serde_derive;
+extern crate serde_json;
+#[macro_use] extern crate failure;
+#[macro_use] extern crate failure_derive;
+extern crate tokio;
+extern crate futures_await as futures;
 extern crate hyper;
 extern crate hyper_tls;
-extern crate serde_json;
-extern crate sha1;
+extern crate http;
 extern crate url;
-#[macro_use]
-extern crate failure_derive;
+extern crate sha1;
 extern crate semver;
-extern crate tokio;
-#[macro_use]
-extern crate slog;
-extern crate futures_await as futures;
+#[macro_use] extern crate slog;
 extern crate time;
 extern crate zip;
-#[macro_use]
-extern crate nom;
+#[macro_use] extern crate nom;
 extern crate kuchiki;
 extern crate regex;
-#[macro_use]
-extern crate lazy_static;
+#[macro_use] extern crate lazy_static;
 extern crate termcolor;
 //FIXME: has_class in kuchiki should probably not require selectors to be imported
 //       maybe file a bug for this

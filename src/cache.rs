@@ -7,11 +7,30 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::result::Result;
 use util;
-use http::{self, Uri};
+use http::Uri;
 
-pub trait Cacheable {
+pub trait Cacheable: Send + Sized + 'static {
+    type Cache: Cache<Self>;
     fn cached_path(&self) -> PathBuf;
-    fn uri(&self) -> Result<Uri, http::uri::InvalidUri>;
+    fn uri(&self) -> Result<Uri, download::Error>;
+    fn reader(self, manager: DownloadManager, log: Logger) -> download::BoxFuture<fs::File> {
+        Box::new(
+            Self::Cache::with(self, manager, log).and_then(move |path| Ok(fs::File::open(path)?)),
+        )
+    }
+    fn install_at(
+        self,
+        location: &Path,
+        manager: DownloadManager,
+        log: Logger,
+    ) -> download::BoxFuture<()> {
+        Self::Cache::install_at(
+            self,
+            location.to_owned(),
+            manager,
+            log,
+        )
+    }
 }
 
 pub trait Cache<T: Cacheable + Send + 'static> {
@@ -34,7 +53,14 @@ pub trait Cache<T: Cacheable + Send + 'static> {
         fs::create_dir_all(&location)?;
 
         cached_path.file_name().map(|n| location.push(n));
-        util::symlink(cached_path, location, log)?;
+        match util::symlink(cached_path, location, &log) {
+            Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
+            Err(util::SymlinkError::AlreadyExists) => {
+                //TODO: verify the file, and replace/redownload it if needed
+                warn!(log, "File already exist, assuming content is correct");
+            }
+            Ok(_) => {}
+        }
         Ok(())
     }
 }
@@ -105,5 +131,20 @@ impl<T: Cacheable + Send + 'static> ::cache::Cache<T> for FileCache {
                 Err(e) => Box::new(future::err(download::Error::from(e))),
             }
         }
+    }
+}
+
+//TODO: does it make more sense to implement cachable in terms of downloadable?
+//      (i.e. opposite of what we're doing here)
+use download::Downloadable;
+
+impl<C: Cacheable + Sync> Downloadable for C {
+    fn download(
+        self,
+        location: PathBuf,
+        manager: DownloadManager,
+        log: Logger,
+    ) -> download::BoxFuture<()> {
+        <Self as Cacheable>::Cache::install_at(self, location, manager, log)
     }
 }
