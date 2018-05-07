@@ -95,7 +95,8 @@ impl Downloadable for ModSource {
             }
             ModSource::MavenMod { repo, artifact } => Box::new(async_block!{
                 let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
-                Ok(await!(artifact.download_from(location.as_ref(), repo, manager, log))?)
+                await!(artifact.download_from(location.as_ref(), repo, manager, log))?;
+                Ok(())
             }),
         }
     }
@@ -216,10 +217,9 @@ impl Downloadable for MCLibraryListing {
         };
         if let Some(resolved_artifact) = resolved_artifact {
             location.push(resolved_artifact.to_path());
-            Ok(await!(resolved_artifact.download(location, manager, log))?)
-        } else {
-            Ok(())
+            await!(resolved_artifact.download(location, manager, log))?;
         }
+        Ok(())
     }
 }
 
@@ -365,6 +365,7 @@ impl ModpackConfig {
     where
         W: Write,
     {
-        Ok(serde_json::ser::to_writer_pretty(writer, &self)?)
+        serde_json::ser::to_writer_pretty(writer, &self)?;
+        Ok(())
     }
 }

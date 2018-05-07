@@ -101,7 +101,8 @@ impl Downloadable for Url {
         let url = self.clone();
         Box::new(async_block!{
             let uri = util::url_to_uri(&url)?;
-            Ok(await!(uri.download(location, manager, log))?)
+            await!(uri.download(location, manager, log))?;
+            Ok(())
         })
     }
 }
@@ -118,13 +119,19 @@ pub struct HttpSimple {
     https_client: hyper::Client<HttpsConnector<HttpConnector>>,
 }
 
-impl HttpSimple {
-    pub fn new() -> Self {
+impl Default for HttpSimple {
+    fn default() -> Self {
         HttpSimple {
             http_client: hyper::Client::new(),
             https_client: hyper::Client::builder()
                 .build(HttpsConnector::new(4).expect("Couldn't create httpsconnector")),
         }
+    }
+}
+
+impl HttpSimple {
+    pub fn new() -> Self {
+        Default::default()
     }
 
     pub fn get(&self, uri: Uri) -> hyper::client::ResponseFuture {
@@ -157,16 +164,14 @@ impl HttpSimple {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct DownloadManager {
     http_client: HttpSimple,
 }
 
 impl DownloadManager {
     pub fn new() -> Self {
-        DownloadManager {
-            http_client: HttpSimple::new(),
-        }
+        Default::default()
     }
 
     pub fn get(&self, url: Uri) -> Result<RedirectFollower> {
@@ -298,10 +303,10 @@ impl RedirectFollower {
         Ok(RedirectFollower {
             current_response: Some(client.request(request)),
             current_location: Some(url),
-            client: client,
-            method: method,
-            headers: headers,
-            version: version,
+            client,
+            method,
+            headers,
+            version,
         })
     }
 }
@@ -359,8 +364,8 @@ impl Future for RedirectFollower {
         } else {
             panic!("RedirectFollower polled after return. This is a bug.")
         };
-        match &res {
-            &Ok(Async::NotReady) => {}
+        match res {
+            Ok(Async::NotReady) => {}
             _ => {
                 self.current_response = None;
                 self.current_location = None;

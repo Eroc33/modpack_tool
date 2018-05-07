@@ -15,6 +15,30 @@ use tokio::prelude::AsyncRead;
 
 use url::Url;
 
+//TODO: make this an extension method?
+pub fn remove_unc_prefix<P: AsRef<Path>>(path: P) -> PathBuf {
+    let path = path.as_ref().to_str().unwrap();
+    let path = path.trim_left_matches(r#"\\?\"#); //actually remove UNC prefix
+    path.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use super::remove_unc_prefix;
+    #[test]
+    fn test_remove_unc_prefix() {
+        assert_eq!(
+            remove_unc_prefix(r#"C:\foo\bar\baz"#),
+            PathBuf::from(r#"C:\foo\bar\baz"#)
+        );
+        assert_eq!(
+            remove_unc_prefix(r#"\\?\C:\foo\bar\baz"#),
+            PathBuf::from(r#"C:\foo\bar\baz"#)
+        );
+    }
+}
+
 pub fn uri_to_url(uri: &Uri) -> ::download::Result<Url> {
     Ok(Url::from_str(format!("{}", uri).as_str())?)
 }
@@ -36,25 +60,28 @@ where
         .and_then(move |file| {
             stream
                 .map_err(Into::into)
-                .fold(file, |file, chunk|{
+                .fold(file, |file, chunk| {
                     tokio::io::copy(Cursor::new(chunk), file)
-                    .map_err(download::Error::from)
-                    .map(|(_n,_r,w)| w)
+                        .map_err(download::Error::from)
+                        .map(|(_n, _r, w)| w)
                 })
                 .map(|_| ())
         })
 }
 
-pub fn save_file<R>(reader: R, path: PathBuf) -> impl Future<Item = u64, Error = download::Error> + Send
+pub fn save_file<R>(
+    reader: R,
+    path: PathBuf,
+) -> impl Future<Item = u64, Error = download::Error> + Send
 where
     R: AsyncRead + Send,
 {
     tokio::fs::File::create(path)
         .map_err(download::Error::from)
-        .and_then(move |file|{
+        .and_then(move |file| {
             tokio::io::copy(reader, file)
-            .map_err(download::Error::from)
-            .map(|(n,_r,_w)| n)
+                .map_err(download::Error::from)
+                .map(|(n, _r, _w)| n)
         })
 }
 
@@ -63,17 +90,16 @@ pub fn file_timestamp<P: AsRef<Path>>(path: P) -> download::Result<DateTime<Utc>
     Ok(metadata.modified()?.into())
 }
 
-#[derive(Debug,Fail)]
-pub enum SymlinkError{
-    #[fail(display="{}",_0)]
-    Io(#[cause]std::io::Error),
-    #[fail(display="The target of the symlink already exists")]
-    AlreadyExists
+#[derive(Debug, Fail)]
+pub enum SymlinkError {
+    #[fail(display = "{}", _0)]
+    Io(#[cause] std::io::Error),
+    #[fail(display = "The target of the symlink already exists")]
+    AlreadyExists,
 }
 
-impl From<std::io::Error> for SymlinkError{
-    fn from(err: std::io::Error) -> Self
-    {
+impl From<std::io::Error> for SymlinkError {
+    fn from(err: std::io::Error) -> Self {
         SymlinkError::Io(err)
     }
 }
@@ -87,7 +113,7 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
     src: P,
     dst: Q,
     log: &Logger,
-) -> Result<(),SymlinkError> {
+) -> Result<(), SymlinkError> {
     info!(log, "symlinking {:?} to {:?}", src, dst);
     if SYMLINKS_BLOCKED.load(Ordering::Acquire) {
         warn!(log, "symlink permission denied, falling back to copy");
@@ -97,19 +123,21 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
         match _symlink(src.as_ref(), dst.as_ref()) {
             //if the file already exists
             #[cfg(windows)]
-            Err(ref e) if e.raw_os_error() == Some(183) => {
+            Err(ref e) if e.raw_os_error() == Some(183) =>
+            {
                 Err(SymlinkError::AlreadyExists)
             }
             // if the symlink failed due to permission denied
             #[cfg(windows)]
-            Err(ref e) if e.raw_os_error() == Some(1314) => {
+            Err(ref e) if e.raw_os_error() == Some(1314) =>
+            {
                 warn!(log, "Symlink permission denied, falling back to copy");
                 SYMLINKS_BLOCKED.store(true, Ordering::Release);
                 ::std::fs::copy(src, dst)?;
                 Ok(())
             }
             Ok(_) => Ok(()),
-            Err(e) => Err(e.into())
+            Err(e) => Err(e.into()),
         }
     }
 }

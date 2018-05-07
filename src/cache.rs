@@ -24,12 +24,7 @@ pub trait Cacheable: Send + Sized + 'static {
         manager: DownloadManager,
         log: Logger,
     ) -> download::BoxFuture<()> {
-        Self::Cache::install_at(
-            self,
-            location.to_owned(),
-            manager,
-            log,
-        )
+        Self::Cache::install_at(self, location.to_owned(), manager, log)
     }
 }
 
@@ -52,7 +47,9 @@ pub trait Cache<T: Cacheable + Send + 'static> {
 
         fs::create_dir_all(&location)?;
 
-        cached_path.file_name().map(|n| location.push(n));
+        if let Some(name) = cached_path.file_name() {
+            location.push(name);
+        }
         match util::symlink(cached_path, location, &log) {
             Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
             Err(util::SymlinkError::AlreadyExists) => {
@@ -104,7 +101,7 @@ impl<T: Cacheable + Send + 'static> ::cache::Cache<T> for FolderCache {
                         .download(uri, cached_path.clone(), true, &log)
                         .and_then(move |_| first_file_in_folder(cached_path)),
                 ),
-                Err(e) => Box::new(future::err(download::Error::from(e))),
+                Err(e) => Box::new(future::err(e)),
             }
         }
     }
@@ -128,7 +125,7 @@ impl<T: Cacheable + Send + 'static> ::cache::Cache<T> for FileCache {
                         .download(uri, cached_path.clone(), false, &log)
                         .map(move |_| cached_path),
                 ),
-                Err(e) => Box::new(future::err(download::Error::from(e))),
+                Err(e) => Box::new(future::err(e)),
             }
         }
     }

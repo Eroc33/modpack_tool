@@ -22,6 +22,7 @@ use modpack_tool::maven;
 use modpack_tool::upgrade;
 use modpack_tool::types::*;
 use modpack_tool::cache::Cacheable;
+use modpack_tool::util;
 
 use slog::{Drain, Logger};
 
@@ -29,18 +30,30 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use serde_json::Value;
+
+fn merge(a: &mut Value, b: &Value) {
+    match (a, b) {
+        (&mut Value::Object(ref mut a), &Value::Object(ref b)) => for (k, v) in b {
+            merge(a.entry(k.clone()).or_insert(Value::Null), v);
+        },
+        (a, b) => {
+            *a = b.clone();
+        }
+    }
+}
+
 fn add_launcher_profile(
-    pack_path: PathBuf,
+    pack_path: &PathBuf,
     pack_name: String,
-    version_id: VersionId,
-    _log: Logger,
+    version_id: &VersionId,
+    _log: &Logger,
 ) -> Result<()> {
     use serde_json::value::Value;
 
+    //de UNC prefix path, because apparently java can't handle it
     let pack_path = pack_path.canonicalize()?;
-    let pack_path = pack_path.to_str().unwrap();
-    // FIXME move this to a function switched out for various platforms
-    let pack_path = pack_path.trim_left_matches(r#"\\?\"#); //de UNC prefix path, because apparently java can't handle it
+    let pack_path = util::remove_unc_prefix(pack_path);
 
     let mut mc_path = mc_install_loc();
     mc_path.push("launcher_profiles.json");
@@ -58,30 +71,24 @@ fn add_launcher_profile(
 
         //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
 
+        let always_set = json!({
+                        "name": pack_name,
+                        "gameDir": pack_path,
+                        "lastVersionId": version_id.0
+                    });
+
         match profiles.entry(pack_name.as_str()) {
             Entry::Occupied(mut occupied) => {
-                let profile = occupied
-                    .get_mut()
-                    .as_object_mut()
-                    .expect("Profile value was not an object");
-                profile.insert("name".to_string(), serde_json::to_value(pack_name).unwrap());
-                profile.insert(
-                    "gameDir".to_string(),
-                    serde_json::to_value(pack_path).unwrap(),
-                );
-                profile.insert(
-                    "lastVersionId".to_string(),
-                    serde_json::to_value(version_id.0.clone()).unwrap(),
-                );
+                let profile = occupied.get_mut();
+                merge(profile, &always_set);
             }
             Entry::Vacant(empty) => {
                 // bump the memory higher than the mojang default if this is our initial creation
-                empty.insert(json!({
-                    "javaArgs": "-Xms2G -Xmx2G",
-                    "name": pack_name,
-                    "gameDir": pack_path,
-                    "lastVersionId": version_id.0
-                }));
+                let mut to_set = json!({
+                    "javaArgs": "-Xms2G -Xmx2G"
+                });
+                merge(&mut to_set, &always_set);
+                empty.insert(to_set);
             }
         }
     }
@@ -96,7 +103,7 @@ fn download_modlist(
     mut pack_path: PathBuf,
     mod_list: ModList,
     manager: DownloadManager,
-    log: Logger,
+    log: &Logger,
 ) -> BoxFuture<()> {
     let log = log.new(o!("stage"=>"download_modlist"));
 
@@ -109,7 +116,8 @@ fn download_modlist(
             let entry = entry?;
             std::fs::remove_file(&entry.path())?;
         }
-        Ok(await!(mod_list.download(pack_path, manager, log))?)
+        await!(mod_list.download(pack_path, manager, log))?;
+        Ok(())
     })
 }
 
@@ -127,7 +135,7 @@ fn install_forge(
     mut pack_path: PathBuf,
     forge_artifact: maven::ResolvedArtifact,
     manager: DownloadManager,
-    log: Logger,
+    log: &Logger,
 ) -> BoxFuture<VersionId> {
     use serde_json::Value;
 
@@ -213,12 +221,12 @@ fn update(path: String, log: Logger) -> BoxFuture<()> {
                 install_forge(pack_path.clone(),
                         forge_maven_artifact,
                         download_manager.clone(),
-                        log.clone())
-                .join(download_modlist(pack_path.clone(), mods, download_manager.clone(), log.clone()))
+                        &log)
+                .join(download_modlist(pack_path.clone(), mods, download_manager.clone(), &log))
             );
 
         let (id, _) = await!(joint_task)?;
-        add_launcher_profile(pack_path, pack_name, id, log.clone())?;
+        add_launcher_profile(&pack_path, pack_name, &id, &log)?;
         info!(log,"Done");
         Ok(())
     })

@@ -1,81 +1,80 @@
-{"msg":"loading pack config","level":"INFO","ts":"2018-05-06T14:26:20.395204100+01:00"}
-{"msg":"Creating pack folder","level":"TRCE","ts":"2018-05-06T14:26:20.449264100+01:00","stage":"install_forge"}
-{"msg":"Created pack folder","level":"TRCE","ts":"2018-05-06T14:26:20.451265+01:00","stage":"install_forge"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.456264200+01:00","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.12.2-14.23.0.2512\\forge-1.12.2-14.23.0.2512-universal.jar","stage":"install_forge"}
-{"msg":"Opening forge jar","level":"DEBG","ts":"2018-05-06T14:26:20.469265900+01:00","stage":"install_forge"}
-{"msg":"Reading version json","level":"DEBG","ts":"2018-05-06T14:26:20.621141+01:00","stage":"install_forge"}
-{"msg":"creating profile folder","level":"DEBG","ts":"2018-05-06T14:26:20.644187900+01:00","stage":"install_forge"}
-{"msg":"saving version json to minecraft install loc","level":"DEBG","ts":"2018-05-06T14:26:20.647187900+01:00","stage":"install_forge"}
-{"msg":"Applying version json hacks","level":"DEBG","ts":"2018-05-06T14:26:20.651186300+01:00","stage":"install_forge"}
-{"msg":"caching maven artifact","level":"INFO","ts":"2018-05-06T14:26:20.698188+01:00","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.12.2-14.23.0.2512\\forge-1.12.2-14.23.0.2512-universal.jar","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
-{"msg":"artifact was already cached","level":"INFO","ts":"2018-05-06T14:26:20.708191200+01:00","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.12.2-14.23.0.2512\\forge-1.12.2-14.23.0.2512-universal.jar","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
-{"msg":"installing maven artifact","level":"INFO","ts":"2018-05-06T14:26:20.712189900+01:00","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
-{"msg":"symlinking \"./mvn_cache/net\\\\minecraftforge\\\\forge\\\\1.12.2-14.23.0.2512\\\\forge-1.12.2-14.23.0.2512-universal.jar\" to \"C:\\\\Users\\\\euan\\\\AppData\\\\Roaming\\\\.minecraft\\\\libraries\\\\net\\\\minecraftforge\\\\forge\\\\1.12.2-14.23.0.2512\\\\forge-1.12.2-14.23.0.2512.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.740193700+01:00","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
-{"msg":"File already exist, assuming content is correct","level":"WARN","ts":"2018-05-06T14:26:20.744194100+01:00","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.759193300+01:00","cached_path":"./curse_cache/morph-o-tool\\2475117","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.770194700+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/morph-o-tool\\\\2475117\\\\Morph-o-Tool-1.2-16.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Morph-o-Tool-1.2-16.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.781195200+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.785195300+01:00","cached_path":"./curse_cache/tinkers-tool-leveling\\2474358","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.789194+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/tinkers-tool-leveling\\\\2474358\\\\TinkerToolLeveling-1.12-1.0.2b.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\TinkerToolLeveling-1.12-1.0.2b.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.809195300+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.813194800+01:00","cached_path":"./curse_cache/akashic-tome\\2476494","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.816197400+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/akashic-tome\\\\2476494\\\\AkashicTome-1.2-10.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\AkashicTome-1.2-10.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.828196300+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.832197300+01:00","cached_path":"./curse_cache/autoreglib\\2490431","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.835198700+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/autoreglib\\\\2490431\\\\AutoRegLib-1.3-14.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\AutoRegLib-1.3-14.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.851201300+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.856202200+01:00","cached_path":"./curse_cache/mantle\\2474052","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.859198700+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/mantle\\\\2474052\\\\Mantle-1.12-1.3.1.21.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Mantle-1.12-1.3.1.21.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.870199700+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.875199500+01:00","cached_path":"./curse_cache/rftools-control\\2451161","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.881202300+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/rftools-control\\\\2451161\\\\rftoolsctrl-1.12-1.6.8.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\rftoolsctrl-1.12-1.6.8.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.894200500+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.898199200+01:00","cached_path":"./curse_cache/rftools-dimensions\\2478237","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.901200600+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/rftools-dimensions\\\\2478237\\\\rftoolsdim-1.12-5.05.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\rftoolsdim-1.12-5.05.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.919202700+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.923207200+01:00","cached_path":"./curse_cache/mcjtylib\\2451959","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.927201500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/mcjtylib\\\\2451959\\\\mcjtylib-1.12-2.4.4.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\mcjtylib-1.12-2.4.4.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.943203800+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:20.960203900+01:00","cached_path":"./curse_cache/tinkers-construct\\2490867","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:20.963203200+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/tinkers-construct\\\\2490867\\\\TConstruct-1.12-2.7.4.34.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\TConstruct-1.12-2.7.4.34.jar\"","level":"INFO","ts":"2018-05-06T14:26:20.983212300+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.000207500+01:00","cached_path":"./curse_cache/veinminer\\2457081","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.003207800+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/veinminer\\\\2457081\\\\VeinMiner-1.12-0.38.1.639+134fb1e.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\VeinMiner-1.12-0.38.1.639+134fb1e.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.021210700+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.027208+01:00","cached_path":"./curse_cache/rftools\\2491667","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.030214300+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/rftools\\\\2491667\\\\rftools-1.12-7.12.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\rftools-1.12-7.12.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.041208700+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.050210+01:00","cached_path":"./curse_cache/quark\\2495094","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.056212300+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/quark\\\\2495094\\\\Quark-r1.3-114.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Quark-r1.3-114.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.067211+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.071209400+01:00","cached_path":"./curse_cache/astral-sorcery\\2495328","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.074210+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/astral-sorcery\\\\2495328\\\\astralsorcery-1.12.2-1.7.2.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\astralsorcery-1.12.2-1.7.2.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.092212900+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.096215900+01:00","cached_path":"./curse_cache/just-enough-items-jei\\2496408","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.100211700+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/just-enough-items-jei\\\\2496408\\\\jei_1.12.2-4.8.0.111.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\jei_1.12.2-4.8.0.111.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.112211800+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.122212400+01:00","cached_path":"./curse_cache/gravestone-mod\\2482114","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.125214400+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/gravestone-mod\\\\2482114\\\\gravestone-1.10.0.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\gravestone-1.10.0.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.137215400+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.142273600+01:00","cached_path":"./curse_cache/compact-machines\\2498195","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.152215700+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/compact-machines\\\\2498195\\\\compactmachines3-1.12.2-3.0.1-b161.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\compactmachines3-1.12.2-3.0.1-b161.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.167215800+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.173216300+01:00","cached_path":"./curse_cache/extra-utilities\\2497041","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.183217500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/extra-utilities\\\\2497041\\\\extrautils2-1.12-1.6.5.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\extrautils2-1.12-1.6.5.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.196217500+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.202220900+01:00","cached_path":"./curse_cache/advanced-generators\\2494379","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.205275+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/advanced-generators\\\\2494379\\\\generators-0.9.20.9-mc1.12.2.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\generators-0.9.20.9-mc1.12.2.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.226220200+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.230218900+01:00","cached_path":"./curse_cache/general-laymans-aesthetic-spying-screen-glass\\2501251","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.234220800+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/general-laymans-aesthetic-spying-screen-glass\\\\2501251\\\\GeneralLaymansAestheticSpyingScreen-1.12.2-7.0.0.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\GeneralLaymansAestheticSpyingScreen-1.12.2-7.0.0.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.257222800+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.262219900+01:00","cached_path":"./curse_cache/meecreeps\\2503216","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.266220900+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/meecreeps\\\\2503216\\\\meecreeps-1.12-0.1.6beta.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\meecreeps-1.12-0.1.6beta.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.284221500+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.305225900+01:00","cached_path":"./curse_cache/signals\\2508339","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.308224600+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/signals\\\\2508339\\\\Signals-1.12.2-1.2.0-3-universal.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Signals-1.12.2-1.2.0-3-universal.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.320224800+01:00","stage":"download_modlist"}
-{"msg":"item was already cached","level":"INFO","ts":"2018-05-06T14:26:21.343227100+01:00","cached_path":"./curse_cache/in-game-wiki-mod\\2501941","stage":"download_modlist"}
-{"msg":"installing item","level":"INFO","ts":"2018-05-06T14:26:21.346226800+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
-{"msg":"symlinking \"./curse_cache/in-game-wiki-mod\\\\2501941\\\\IGW-Mod-1.12.2-1.4.3-14-universal.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\IGW-Mod-1.12.2-1.4.3-14-universal.jar\"","level":"INFO","ts":"2018-05-06T14:26:21.360227500+01:00","stage":"download_modlist"}
-{"msg":"Done","level":"INFO","ts":"2018-05-06T14:26:21.383228700+01:00"}
+{"msg":"loading pack config","level":"INFO","ts":"2018-05-07T22:00:39.216565300+01:00"}
+{"msg":"Creating pack folder","level":"TRCE","ts":"2018-05-07T22:00:39.235568100+01:00","stage":"install_forge"}
+{"msg":"Created pack folder","level":"TRCE","ts":"2018-05-07T22:00:39.238568100+01:00","stage":"install_forge"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.242069600+01:00","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.12.2-14.23.0.2512\\forge-1.12.2-14.23.0.2512-universal.jar","stage":"install_forge"}
+{"msg":"Opening forge jar","level":"DEBG","ts":"2018-05-07T22:00:39.245068300+01:00","stage":"install_forge"}
+{"msg":"Reading version json","level":"DEBG","ts":"2018-05-07T22:00:39.463095300+01:00","stage":"install_forge"}
+{"msg":"creating profile folder","level":"DEBG","ts":"2018-05-07T22:00:39.477097800+01:00","stage":"install_forge"}
+{"msg":"saving version json to minecraft install loc","level":"DEBG","ts":"2018-05-07T22:00:39.479097600+01:00","stage":"install_forge"}
+{"msg":"Applying version json hacks","level":"DEBG","ts":"2018-05-07T22:00:39.483600100+01:00","stage":"install_forge"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.525103200+01:00","cached_path":"./mvn_cache/net\\minecraftforge\\forge\\1.12.2-14.23.0.2512\\forge-1.12.2-14.23.0.2512-universal.jar","stage":"install_forge"}
+{"msg":"installing maven artifact","level":"INFO","ts":"2018-05-07T22:00:39.529605200+01:00","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
+{"msg":"symlinking \"./mvn_cache/net\\\\minecraftforge\\\\forge\\\\1.12.2-14.23.0.2512\\\\forge-1.12.2-14.23.0.2512-universal.jar\" to \"C:\\\\Users\\\\euan\\\\AppData\\\\Roaming\\\\.minecraft\\\\libraries\\\\net\\\\minecraftforge\\\\forge\\\\1.12.2-14.23.0.2512\\\\forge-1.12.2-14.23.0.2512.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.571111400+01:00","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
+{"msg":"File already exist, assuming content is correct","level":"WARN","ts":"2018-05-07T22:00:39.578110900+01:00","repo":"http://files.minecraftforge.net/maven/","artifact":"net.minecraftforge:forge:1.12.2-14.23.0.2512:universal@jar","stage":"install_forge"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.601614200+01:00","cached_path":"./curse_cache/morph-o-tool\\2475117","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.606615400+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/morph-o-tool\\\\2475117\\\\Morph-o-Tool-1.2-16.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Morph-o-Tool-1.2-16.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.621117700+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.628617+01:00","cached_path":"./curse_cache/tinkers-tool-leveling\\2474358","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.632116500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/tinkers-tool-leveling\\\\2474358\\\\TinkerToolLeveling-1.12-1.0.2b.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\TinkerToolLeveling-1.12-1.0.2b.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.649619300+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.655120+01:00","cached_path":"./curse_cache/akashic-tome\\2476494","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.660120300+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/akashic-tome\\\\2476494\\\\AkashicTome-1.2-10.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\AkashicTome-1.2-10.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.690626300+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.696626200+01:00","cached_path":"./curse_cache/autoreglib\\2490431","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.718628100+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/autoreglib\\\\2490431\\\\AutoRegLib-1.3-14.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\AutoRegLib-1.3-14.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.734630100+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.739630700+01:00","cached_path":"./curse_cache/mantle\\2474052","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.744632500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/mantle\\\\2474052\\\\Mantle-1.12-1.3.1.21.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Mantle-1.12-1.3.1.21.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.770635400+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.776636400+01:00","cached_path":"./curse_cache/rftools-control\\2451161","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.780638900+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/rftools-control\\\\2451161\\\\rftoolsctrl-1.12-1.6.8.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\rftoolsctrl-1.12-1.6.8.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.819140800+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.824642400+01:00","cached_path":"./curse_cache/rftools-dimensions\\2478237","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.828643700+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/rftools-dimensions\\\\2478237\\\\rftoolsdim-1.12-5.05.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\rftoolsdim-1.12-5.05.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.864146200+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.869647800+01:00","cached_path":"./curse_cache/mcjtylib\\2451959","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.873648500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/mcjtylib\\\\2451959\\\\mcjtylib-1.12-2.4.4.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\mcjtylib-1.12-2.4.4.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.909651400+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.915652500+01:00","cached_path":"./curse_cache/tinkers-construct\\2490867","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.921653+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/tinkers-construct\\\\2490867\\\\TConstruct-1.12-2.7.4.34.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\TConstruct-1.12-2.7.4.34.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.943156+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.947157+01:00","cached_path":"./curse_cache/veinminer\\2457081","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.950657300+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/veinminer\\\\2457081\\\\VeinMiner-1.12-0.38.1.639+134fb1e.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\VeinMiner-1.12-0.38.1.639+134fb1e.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.979161800+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:39.983660600+01:00","cached_path":"./curse_cache/rftools\\2491667","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:39.987161500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/rftools\\\\2491667\\\\rftools-1.12-7.12.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\rftools-1.12-7.12.jar\"","level":"INFO","ts":"2018-05-07T22:00:39.997663400+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.002165600+01:00","cached_path":"./curse_cache/quark\\2495094","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.019666100+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/quark\\\\2495094\\\\Quark-r1.3-114.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Quark-r1.3-114.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.032168100+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.037167500+01:00","cached_path":"./curse_cache/astral-sorcery\\2495328","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.041169400+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/astral-sorcery\\\\2495328\\\\astralsorcery-1.12.2-1.7.2.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\astralsorcery-1.12.2-1.7.2.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.071672500+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.077675300+01:00","cached_path":"./curse_cache/just-enough-items-jei\\2496408","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.083675500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/just-enough-items-jei\\\\2496408\\\\jei_1.12.2-4.8.0.111.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\jei_1.12.2-4.8.0.111.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.119178400+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.125180+01:00","cached_path":"./curse_cache/gravestone-mod\\2482114","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.149184600+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/gravestone-mod\\\\2482114\\\\gravestone-1.10.0.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\gravestone-1.10.0.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.165684900+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.171185600+01:00","cached_path":"./curse_cache/compact-machines\\2498195","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.192187+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/compact-machines\\\\2498195\\\\compactmachines3-1.12.2-3.0.1-b161.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\compactmachines3-1.12.2-3.0.1-b161.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.212690100+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.218691200+01:00","cached_path":"./curse_cache/extra-utilities\\2497041","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.222191200+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/extra-utilities\\\\2497041\\\\extrautils2-1.12-1.6.5.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\extrautils2-1.12-1.6.5.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.255695500+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.261196400+01:00","cached_path":"./curse_cache/advanced-generators\\2494379","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.264697900+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/advanced-generators\\\\2494379\\\\generators-0.9.20.9-mc1.12.2.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\generators-0.9.20.9-mc1.12.2.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.301701300+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.306702200+01:00","cached_path":"./curse_cache/general-laymans-aesthetic-spying-screen-glass\\2501251","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.310703500+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/general-laymans-aesthetic-spying-screen-glass\\\\2501251\\\\GeneralLaymansAestheticSpyingScreen-1.12.2-7.0.0.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\GeneralLaymansAestheticSpyingScreen-1.12.2-7.0.0.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.347207400+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.352207200+01:00","cached_path":"./curse_cache/meecreeps\\2503216","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.356208200+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/meecreeps\\\\2503216\\\\meecreeps-1.12-0.1.6beta.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\meecreeps-1.12-0.1.6beta.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.379710300+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.384711500+01:00","cached_path":"./curse_cache/signals\\2508339","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.388713400+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/signals\\\\2508339\\\\Signals-1.12.2-1.2.0-3-universal.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\Signals-1.12.2-1.2.0-3-universal.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.403715200+01:00","stage":"download_modlist"}
+{"msg":"item was already cached","level":"INFO","ts":"2018-05-07T22:00:40.423217200+01:00","cached_path":"./curse_cache/in-game-wiki-mod\\2501941","stage":"download_modlist"}
+{"msg":"installing item","level":"INFO","ts":"2018-05-07T22:00:40.428720800+01:00","stage":"download_modlist","location":".\\Euan_s_1_12_2_pack\\mods"}
+{"msg":"symlinking \"./curse_cache/in-game-wiki-mod\\\\2501941\\\\IGW-Mod-1.12.2-1.4.3-14-universal.jar\" to \".\\\\Euan_s_1_12_2_pack\\\\mods\\\\IGW-Mod-1.12.2-1.4.3-14-universal.jar\"","level":"INFO","ts":"2018-05-07T22:00:40.444720200+01:00","stage":"download_modlist"}
+{"msg":"Done","level":"INFO","ts":"2018-05-07T22:00:40.465722800+01:00"}

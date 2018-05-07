@@ -191,34 +191,36 @@ impl ResolvedArtifact {
         manager: DownloadManager,
         log: Logger,
     ) -> impl Future<Item = (), Error = ::download::Error> + Send {
-        <Self as Cacheable>::Cache::with(self.clone(), manager, log.clone()).and_then(move |cached_path| {
-            let ResolvedArtifact { artifact, repo } = self;
-            let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
-            info!(log, "installing maven artifact");
+        <Self as Cacheable>::Cache::with(self.clone(), manager, log.clone()).and_then(
+            move |cached_path| {
+                let ResolvedArtifact { artifact, repo } = self;
+                let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
+                info!(log, "installing maven artifact");
 
-            let cached_path_no_classifier = ResolvedArtifact {
-                artifact: MavenArtifact{
-                    classifier: None,
-                    ..artifact.clone()
-                },
-                repo,
-            }.cached_path();
+                let cached_path_no_classifier = ResolvedArtifact {
+                    artifact: MavenArtifact {
+                        classifier: None,
+                        ..artifact.clone()
+                    },
+                    repo,
+                }.cached_path();
 
-            fs::create_dir_all(location.to_owned())?;
+                fs::create_dir_all(location.to_owned())?;
 
-            cached_path_no_classifier
-                .file_name()
-                .map(|n| location.push(n));
-            match util::symlink(cached_path, location, &log) {
-                Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
-                Err(util::SymlinkError::AlreadyExists) => {
-                    //TODO: verify the file, and replace/redownload it if needed
-                    warn!(log, "File already exist, assuming content is correct");
+                if let Some(name) = cached_path_no_classifier.file_name() {
+                    location.push(name);
                 }
-                Ok(_) => {}
-            }
-            Ok(())
-        })
+                match util::symlink(cached_path, location, &log) {
+                    Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
+                    Err(util::SymlinkError::AlreadyExists) => {
+                        //TODO: verify the file, and replace/redownload it if needed
+                        warn!(log, "File already exist, assuming content is correct");
+                    }
+                    Ok(_) => {}
+                }
+                Ok(())
+            },
+        )
     }
 }
 

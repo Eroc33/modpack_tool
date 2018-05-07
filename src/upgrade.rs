@@ -28,6 +28,15 @@ use termcolor::{ColorSpec, WriteColor};
 use termcolor::Color::*;
 use std::io::Write;
 
+macro_rules! format_coloredln{
+    ($output:expr; $($rest:tt)+ ) => {
+        let mut buf = $output.buffer();
+        format_colored!(_impl buf; $($rest)+ );
+        writeln!(buf)?;
+        $output.print(&buf)?;
+    };
+}
+
 macro_rules! format_colored{
     ($output:expr; $($rest:tt)+ ) => {
         let mut buf = $output.buffer();
@@ -207,7 +216,7 @@ fn find_most_recent(
                 let cell_ref = additional_versions.attributes.borrow();
                 if let Some(title) = cell_ref.get("title"){
                     for version in TITLE_REGEX.split(title){
-                        if !(version.starts_with("Java") || version.starts_with("java")) && !version.is_empty(){
+                        if !(version.is_empty() || version.starts_with("Java") || version.starts_with("java")){
                             //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
                             let version = if version.chars().filter(|&c| c=='.').count() == 1 {
                                 version.to_owned() + ".0"
@@ -240,8 +249,8 @@ fn find_most_recent(
                 let (version, _) = extract_version_and_id(url.as_str());
                 return Ok(Some(ModVersionInfo {
                     id: project_name.to_string(),
-                    version: version,
-                    file_name: file_name,
+                    version,
+                    file_name,
                     download_url: url,
                     release_status: release_status.unwrap(),
                     game_versions,
@@ -285,9 +294,9 @@ pub fn check(
                             }else{
                                 unreachable!("Status was not release, alpha, or beta")
                             };
-                            format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)\n", a_an, found.release_status.value() } );
+                            format_coloredln!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)", a_an, found.release_status.value() } );
                         }else{
-                            format_colored!((*COLOR_OUTPUT); "\n" );
+                            format_coloredln!((*COLOR_OUTPUT); "" );
                         }
                         Ok((curse_mod.into(),Some(found.release_status)))
                     } else {
@@ -295,7 +304,9 @@ pub fn check(
                         Ok((curse_mod.into(),None))
                     }
                 })
-                    as Box<Future<Item = (ModSource, Option<ReleaseStatus>), Error = ::Error> + Send>
+                    as Box<
+                        Future<Item = (ModSource, Option<ReleaseStatus>), Error = ::Error> + Send,
+                    >
             }
             ModSource::MavenMod { artifact, repo } => Box::new(async_block!{
                 format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"you must check maven mod: {:?}",artifact});
@@ -385,7 +396,7 @@ pub fn check(
             ", percent_compatible, incompatible.len()
             });
             for modd in incompatible{
-                format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"\t {} ( {} )\n",modd.identifier_string(),modd.guess_project_url().unwrap_or_else(|| "COULD NOT GUESS PROJECT URL".to_owned()) });
+                format_coloredln!((*COLOR_OUTPUT); (&WARN_COLOR){"\t {} ( {} )",modd.identifier_string(),modd.guess_project_url().unwrap_or_else(|| "COULD NOT GUESS PROJECT URL".to_owned()) });
             }
         }
         Ok(())
@@ -397,7 +408,7 @@ pub fn run(
     pack_path: String,
     mut pack: ModpackConfig,
     release_status: ReleaseStatus,
-) -> impl Future<Item = (), Error = ::Error>  + Send + 'static {
+) -> impl Future<Item = (), Error = ::Error> + Send + 'static {
     let http_client = HttpSimple::new();
 
     async_block!{
