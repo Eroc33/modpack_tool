@@ -25,6 +25,8 @@ use modpack_tool::cache::Cacheable;
 use modpack_tool::util;
 use modpack_tool::fs_futures;
 
+use tokio::prelude::*;
+
 use slog::{Drain, Logger};
 
 use std::path::PathBuf;
@@ -43,12 +45,29 @@ fn merge(a: &mut Value, b: &Value) {
     }
 }
 
+fn replace<P, R, FUT, F>(path: P, f: F) -> BoxFuture<()>
+where
+    P: Into<PathBuf>,
+    R: AsyncRead + Send,
+    FUT: Future<Item = R, Error = modpack_tool::Error> + Send,
+    F: FnOnce(tokio::fs::File) -> FUT + Send + 'static,
+{
+    let path = path.into();
+    Box::new(async_block!{
+        let file = await!(tokio::fs::File::open(path.clone()))?;
+        let out = await!(f(file))?;
+        let out_file = await!(tokio::fs::File::create(path))?;
+        await!(tokio::io::copy(out,out_file))?;
+        Ok(())
+    })
+}
+
 fn add_launcher_profile(
     pack_path: &PathBuf,
     pack_name: String,
-    version_id: &VersionId,
+    version_id: VersionId,
     _log: &Logger,
-) -> Result<()> {
+) -> Result<BoxFuture<()>> {
     use serde_json::value::Value;
 
     //de UNC prefix path, because apparently java can't handle it
@@ -57,46 +76,47 @@ fn add_launcher_profile(
 
     let mut mc_path = mc_install_loc();
     mc_path.push("launcher_profiles.json");
-    let profiles_file = std::fs::File::open(&mc_path)?;
-    let mut launcher_profiles: Value = serde_json::from_reader(profiles_file)?;
 
-    {
-        use serde_json::map::Entry;
+    Ok(replace(mc_path, |profiles_file| {
+        async_block!{
+            let mut launcher_profiles: Value = serde_json::from_reader(profiles_file)?;
 
-        let profiles = launcher_profiles
-            .pointer_mut("/profiles")
-            .expect("profiles key is missing")
-            .as_object_mut()
-            .expect("profiles is not an object");
+            {
+                use serde_json::map::Entry;
 
-        //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
+                let profiles = launcher_profiles
+                    .pointer_mut("/profiles")
+                    .expect("profiles key is missing")
+                    .as_object_mut()
+                    .expect("profiles is not an object");
 
-        let always_set = json!({
-                        "name": pack_name,
-                        "gameDir": pack_path,
-                        "lastVersionId": version_id.0
-                    });
+                //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
 
-        match profiles.entry(pack_name.as_str()) {
-            Entry::Occupied(mut occupied) => {
-                let profile = occupied.get_mut();
-                merge(profile, &always_set);
+                let always_set = json!({
+                                "name": pack_name,
+                                "gameDir": pack_path,
+                                "lastVersionId": version_id.0
+                            });
+
+                match profiles.entry(pack_name.as_str()) {
+                    Entry::Occupied(mut occupied) => {
+                        let profile = occupied.get_mut();
+                        merge(profile, &always_set);
+                    }
+                    Entry::Vacant(empty) => {
+                        // bump the memory higher than the mojang default if this is our initial creation
+                        let mut to_set = json!({
+                            "javaArgs": "-Xms2G -Xmx2G"
+                        });
+                        merge(&mut to_set, &always_set);
+                        empty.insert(to_set);
+                    }
+                }
             }
-            Entry::Vacant(empty) => {
-                // bump the memory higher than the mojang default if this is our initial creation
-                let mut to_set = json!({
-                    "javaArgs": "-Xms2G -Xmx2G"
-                });
-                merge(&mut to_set, &always_set);
-                empty.insert(to_set);
-            }
+
+            Ok(std::io::Cursor::new(serde_json::to_vec_pretty(&launcher_profiles)?))
         }
-    }
-
-    let mut profiles_file = std::fs::File::create(mc_path)?;
-    serde_json::to_writer_pretty(&mut profiles_file, &launcher_profiles)?;
-
-    Ok(())
+    }))
 }
 
 fn download_modlist(
@@ -191,18 +211,23 @@ fn install_forge(
     })
 }
 
-fn add(pack_path: &str, mod_url: &str) {
+fn add<P>(pack_path: P, mod_url: String) -> BoxFuture<()>
+where
+    P: Into<PathBuf>,
+{
     use modpack_tool::types::ModpackConfig;
 
-    let file = std::fs::File::open(&pack_path).expect("pack does not exist");
-    let mut pack: ModpackConfig =
-        serde_json::de::from_reader(file).expect("pack file in bad format");
+    replace(pack_path, |file| {
+        async_block!{
+            let mut pack: ModpackConfig =
+                serde_json::de::from_reader(file).expect("pack file in bad format");
 
-    pack.add_mod_by_url(mod_url)
-        .expect("Unparseable modsource url");
+            pack.add_mod_by_url(mod_url.as_str())
+                .expect("Unparseable modsource url");
 
-    let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
-    pack.save(&mut file).unwrap();
+            Ok(std::io::Cursor::new(serde_json::to_vec_pretty(&pack)?))
+        }
+    })
 }
 
 fn update(path: String, log: Logger) -> BoxFuture<()> {
@@ -226,7 +251,7 @@ fn update(path: String, log: Logger) -> BoxFuture<()> {
             );
 
         let (id, _) = await!(joint_task)?;
-        add_launcher_profile(&pack_path, pack_name, &id, &log)?;
+        await!(add_launcher_profile(&pack_path, pack_name, id, &log)?)?;
         info!(log,"Done");
         Ok(())
     })
@@ -385,8 +410,7 @@ fn run() -> Result<i32> {
                 "add" => {
                     let mod_url = args.value_of("mod_url").expect("mod_url is required!");
 
-                    add(pack_path, mod_url);
-                    None
+                    Some(add(pack_path, mod_url.to_owned()))
                 }
                 _ => {
                     build_cli()
