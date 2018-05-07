@@ -23,10 +23,10 @@ use modpack_tool::upgrade;
 use modpack_tool::types::*;
 use modpack_tool::cache::Cacheable;
 use modpack_tool::util;
+use modpack_tool::fs_futures;
 
 use slog::{Drain, Logger};
 
-use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -109,12 +109,11 @@ fn download_modlist(
 
     Box::new(async_block!{
         pack_path.push("mods");
-        let pack_path = pack_path.clone();
-        std::fs::create_dir_all(&pack_path)?;
+        await!(fs_futures::create_dir_all(pack_path.clone()))?;
 
-        for entry in std::fs::read_dir(&pack_path)? {
-            let entry = entry?;
-            std::fs::remove_file(&entry.path())?;
+        #[async]
+        for entry in fs_futures::read_dir(pack_path.clone())? {
+            await!(fs_futures::remove_file(entry.path().clone()))?;
         }
         await!(mod_list.download(pack_path, manager, log))?;
         Ok(())
@@ -144,7 +143,7 @@ fn install_forge(
 
     Box::new(async_block!{
         trace!(log,"Creating pack folder");
-        fs::create_dir_all(pack_path.clone())?;
+        await!(fs_futures::create_dir_all(pack_path.clone()))?;
         trace!(log,"Created pack folder");
 
         let forge_maven_artifact_path = forge_artifact.to_path();
@@ -167,12 +166,15 @@ fn install_forge(
         mc_path.push("versions");
         mc_path.push(version_id.as_str());
         debug!(log, "creating profile folder");
-        fs::create_dir_all(mc_path.clone())?;
+        await!(fs_futures::create_dir_all(mc_path.clone()))?;
 
         mc_path.push(format!("{}.json", version_id.as_str()));
 
         debug!(log, "saving version json to minecraft install loc");
-        let mut version_file = std::fs::File::create(mc_path.clone())?;
+
+        let mut version_file = await!(tokio::fs::File::create(mc_path.clone()))?;
+        //TODO: figure out how to use tokio copy here
+        //note zip_reader.by_name() returns a ZipFile and ZipFile: !Send
         std::io::copy(&mut zip_reader.by_name("version.json")?,
                         &mut version_file)?;
 
@@ -205,8 +207,6 @@ fn add(pack_path: &str, mod_url: &str) {
 
 fn update(path: String, log: Logger) -> BoxFuture<()> {
     let download_manager = DownloadManager::new();
-
-    // slog_stdlog::set_logger(log.new(o!())).unwrap();
 
     info!(log, "loading pack config");
     Box::new(async_block!{

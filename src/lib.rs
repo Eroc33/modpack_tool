@@ -13,6 +13,7 @@ extern crate hyper_tls;
 extern crate semver;
 extern crate sha1;
 extern crate tokio;
+extern crate tokio_threadpool;
 extern crate url;
 #[macro_use]
 extern crate slog;
@@ -40,6 +41,7 @@ pub mod forge_version;
 pub mod hash_writer;
 pub mod hacks;
 pub mod upgrade;
+pub mod fs_futures;
 
 pub use download::Downloadable;
 
