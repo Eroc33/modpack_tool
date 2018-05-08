@@ -3,6 +3,7 @@
 #[macro_use]
 extern crate serde_derive;
 extern crate failure;
+#[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate failure_derive;
@@ -31,6 +32,8 @@ extern crate termcolor;
 extern crate chrono;
 extern crate selectors;
 
+use failure::Context;
+
 pub mod cache;
 pub mod curseforge;
 pub mod download;
@@ -40,20 +43,12 @@ pub mod types;
 pub mod forge_version;
 pub mod hash_writer;
 pub mod hacks;
-pub mod upgrade;
 pub mod fs_futures;
+pub mod cmds;
 
 pub use download::Downloadable;
 
 pub use types::*;
-
-#[macro_export]
-macro_rules! die{
-    ($($items:expr),+) => {{
-        eprintln!($($items),+);
-        std::process::exit(1)
-    }}
-}
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -69,14 +64,16 @@ pub enum Error {
     Zip(#[cause] zip::result::ZipError),
     #[fail(display = "JSON error: {}", _0)]
     Json(#[cause] serde_json::error::Error),
-    #[fail(display = "invalid toolchain name: {}", _0)]
-    ReportError(String),
+    #[fail(display = "{}", _0)]
+    ReportError(Context<String>),
     #[fail(display = "couldn't compile selector")]
     Selector,
     #[fail(display = "unknown url scheme: '{}'", scheme)]
     UnknownScheme { scheme: String },
     #[fail(display = "Couldn't parse mod url: '{}'", url)]
     BadModUrl { url: String },
+    #[fail(display = "Packs must have an auto_update_release_status to be able to auto update")]
+    AutoUpdateDisabled,
 }
 
 pub type Result<T> = ::std::result::Result<T, ::Error>;
@@ -120,6 +117,12 @@ impl From<download::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Error::Io(err)
+    }
+}
+
+impl From<Context<String>> for Error {
+    fn from(err: Context<String>) -> Self {
+        Error::ReportError(err)
     }
 }
 
