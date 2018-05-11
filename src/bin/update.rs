@@ -76,9 +76,19 @@ fn build_cli() -> clap::App<'static, 'static> {
         ])
 }
 
-fn run() -> Result<i32> {
+fn main() -> Result<()> {
     env_logger::init();
-    let matches = build_cli().get_matches();
+    let matches = match build_cli().get_matches_safe(){
+        Ok(matches) => matches,
+        Err(e) => {
+            if e.use_stderr() {
+                eprintln!("{}", e.message);
+            }else{
+                println!("{}", e.message);
+            }
+            return Ok(())
+        },
+    };
 
     let log_path = "modpack_tool.log";
 
@@ -110,7 +120,7 @@ fn run() -> Result<i32> {
                         build_cli()
                             .print_help()
                             .expect("Failed to print help. Is the terminal broken?");
-                        return Ok(0);
+                        return Ok(());
                     }
                 };
                 let args = args.subcommand_matches(sub_cmd)
@@ -190,36 +200,15 @@ fn run() -> Result<i32> {
 
     let run = match run {
         Some(f) => f,
-        None => return Ok(0),
+        None => return Ok(()),
     };
 
-    let (tx, rx) = std::sync::mpsc::channel::<i32>();
+    let (tx, rx) = std::sync::mpsc::channel::<Result<()>>();
     tokio::run(
-        run.map(move |_| 0i32)
-            .then(move |res| match res {
-                Err(e) => {
-                    error!(log, "{}", e);
-                    Ok(1)
-                }
-                Ok(v) => Ok(v),
-            })
-            .map(move |ret_val| {
-                tx.send(ret_val).unwrap();
-            }),
+        run.then(move |res|{
+            tx.send(res).expect("Send failure while sending error");
+            Ok(())
+        })
     );
-
-    match rx.recv() {
-        Ok(ret_val) => Ok(ret_val),
-        Err(_) => Ok(1),
-    }
-}
-
-fn main() {
-    ::std::process::exit(match run() {
-        Ok(ret) => ret,
-        Err(ref e) => {
-            eprintln!("{}", e);
-            1
-        }
-    });
+    rx.recv().expect("Recv failure while getting error")
 }
