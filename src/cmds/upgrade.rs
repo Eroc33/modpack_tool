@@ -1,5 +1,3 @@
-#![feature(conservative_impl_trait, never_type, generators)]
-
 use serde_json;
 use kuchiki;
 use futures;
@@ -11,6 +9,8 @@ use termcolor;
 use selectors::Element;
 use selectors::attr::CaseSensitivity;
 use std;
+use tokio;
+use nom;
 
 use futures::prelude::*;
 use kuchiki::{ElementData, NodeDataRef};
@@ -116,50 +116,68 @@ enum Response {
     No,
 }
 
-impl FromStr for Response{
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        alt_complete!(
+impl Response{
+    fn from_str(s: &str) -> Result<Option<Self>, ()> {
+        let res = alt_complete!(
             s.trim(),
-            map!(re_match!(r"(?i)Y|Yes"), |_| Response::Yes) | map!(re_match!(r"(?i)N|No"), |_| {
-                Response::No
-            })
-        ).to_result().map_err(|_| ())
+            map!(re_match!(r"(?i)Y|Yes"), |_| Some(Response::Yes)) |
+            map!(re_match!(r"(?i)N|No"), |_| Some(Response::No)) |
+            map!(tag!(""), |_| None)
+        );
+        match res{
+            nom::IResult::Done(i,o) => if i.is_empty(){ Ok(o) } else { Err(()) },
+            _ => Err(()),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests{
     use super::Response;
-    use std::str::FromStr;
     #[test]
     fn response_parses_yes(){
-        assert_eq!(Response::from_str("yes"),Ok(Response::Yes));
-        assert_eq!(Response::from_str("Yes"),Ok(Response::Yes));
-        assert_eq!(Response::from_str("y"),Ok(Response::Yes));
-        assert_eq!(Response::from_str("Y"),Ok(Response::Yes));
+        assert_eq!(Response::from_str("yes"),Ok(Some(Response::Yes)));
+        assert_eq!(Response::from_str("Yes"),Ok(Some(Response::Yes)));
+        assert_eq!(Response::from_str("y"),Ok(Some(Response::Yes)));
+        assert_eq!(Response::from_str("Y"),Ok(Some(Response::Yes)));
     }
 
     #[test]
-    fn response_parses_nes(){
-        assert_eq!(Response::from_str("no"),Ok(Response::No));
-        assert_eq!(Response::from_str("No"),Ok(Response::No));
-        assert_eq!(Response::from_str("n"),Ok(Response::No));
-        assert_eq!(Response::from_str("N"),Ok(Response::No));
+    fn response_parses_no(){
+        assert_eq!(Response::from_str("no"),Ok(Some(Response::No)));
+        assert_eq!(Response::from_str("No"),Ok(Some(Response::No)));
+        assert_eq!(Response::from_str("n"),Ok(Some(Response::No)));
+        assert_eq!(Response::from_str("N"),Ok(Some(Response::No)));
+    }
+
+    #[test]
+    fn response_parses_other(){
+        assert!(Response::from_str("adsafggg").is_err());
+        assert!(Response::from_str("??£££23").is_err());
+    }
+
+    #[test]
+    fn response_parses_empty(){
+        assert_eq!(Response::from_str(""),Ok(None));
     }
 }
 
-//FIXME: seems to always return the default
-fn prompt_yes_no(default: Response) -> Response {
-    match default {
-        Response::Yes => print_inline!("[Y/n]"),
-        Response::No => print_inline!("[y/N]"),
+fn prompt_yes_no(prompt: String, default: Response) -> Response {
+    loop{
+        match default {
+            Response::Yes => print_inline!("{}[Y/n]",prompt),
+            Response::No => print_inline!("{}[y/N]",prompt),
+        }
+        let mut line = String::new();
+        std::io::stdin()
+            .read_line(&mut line)
+            .expect("Failed to read line");
+        match Response::from_str(line.as_str()){
+            Ok(Some(r)) => return r,
+            Ok(None) => return default,
+            Err(_) => println!("Please enter yes, no, or nothing."),
+        }
     }
-    let mut line = String::new();
-    std::io::stdin()
-        .read_line(&mut line)
-        .expect("Failed to read line");
-    Response::from_str(line.as_str()).unwrap_or_else(|_| default)
 }
 
 fn extract_version_and_id(url: &str) -> (u64, &str) {
@@ -398,22 +416,19 @@ pub fn check(
                 let percent_alpha_compatible = (alpha_compatible as f32)/(total as f32) * 100.0;
                 println!("(although {:.1}% are compatible only in alpha release)",percent_alpha_compatible);
             }
-            print!("Upgrade now?");
-            if prompt_yes_no(Response::Yes) == Response::Yes{
+            if prompt_yes_no("Upgrade now?".into(),Response::Yes) == Response::Yes{
                 println!("Enter new pack name:");
                 let mut new_name = String::new();
                 std::io::stdin().read_line(&mut new_name).expect("Failed to read pack name. Is terminal broken?");
                 match min_required_status {
                     ReleaseStatus::Alpha if pack_update_status != ReleaseStatus::Alpha => {
-                        print!("This will mean your pack must use alpha status mods. Is this ok?");
-                        if prompt_yes_no(Response::No) == Response::No{
+                        if prompt_yes_no("This will mean your pack must use alpha status mods. Is this ok?".into(),Response::No) == Response::No{
                             println!("Canceling upgrade");
                             return Ok(());
                         }
                     },
                     ReleaseStatus::Beta if pack_update_status != ReleaseStatus::Beta => {
-                        print!("This will mean your pack must use beta status mods. Is this ok?");
-                        if prompt_yes_no(Response::No) == Response::No{
+                        if prompt_yes_no("This will mean your pack must use beta status mods. Is this ok?".into(),Response::No) == Response::No{
                             println!("Canceling upgrade");
                             return Ok(());
                         }
@@ -467,12 +482,12 @@ pub fn run(
                     if let Some(found) = found {
                         assert_eq!(curse_mod.id, found.id);
                         if found.version > curse_mod.version {
-                            print!("Replace {} {} with {} ({})?",
+                            let prompt = format!("Replace {} {} with {} ({})?",
                                 curse_mod.id,
                                 curse_mod.version,
                                 found.version,
                                 found.file_name);
-                            if prompt_yes_no(Response::Yes) == Response::Yes {
+                            if prompt_yes_no(prompt,Response::Yes) == Response::Yes {
                                 Some(ModSource::CurseforgeMod(curseforge::Mod {
                                     id: found.id,
                                     version: found.version,
