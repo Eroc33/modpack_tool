@@ -28,6 +28,16 @@ use termcolor::{ColorSpec, WriteColor};
 use termcolor::Color::*;
 use std::io::Write;
 
+
+macro_rules! print_inline{
+    ($($args:tt)+) => {{
+        print!($($args)+);
+        if let Err(e) = std::io::stdout().flush(){
+            panic!("Failed to flush stdout: {}",e);
+        }
+    }};
+}
+
 macro_rules! format_coloredln{
     ($output:expr; $($rest:tt)+ ) => {
         let mut buf = $output.buffer();
@@ -100,25 +110,56 @@ struct ModVersionInfo {
     game_versions: Vec<semver::Version>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug,PartialEq, Eq)]
 enum Response {
     Yes,
     No,
 }
 
+impl FromStr for Response{
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        alt_complete!(
+            s.trim(),
+            map!(re_match!(r"(?i)Y|Yes"), |_| Response::Yes) | map!(re_match!(r"(?i)N|No"), |_| {
+                Response::No
+            })
+        ).to_result().map_err(|_| ())
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::Response;
+    use std::str::FromStr;
+    #[test]
+    fn response_parses_yes(){
+        assert_eq!(Response::from_str("yes"),Ok(Response::Yes));
+        assert_eq!(Response::from_str("Yes"),Ok(Response::Yes));
+        assert_eq!(Response::from_str("y"),Ok(Response::Yes));
+        assert_eq!(Response::from_str("Y"),Ok(Response::Yes));
+    }
+
+    #[test]
+    fn response_parses_nes(){
+        assert_eq!(Response::from_str("no"),Ok(Response::No));
+        assert_eq!(Response::from_str("No"),Ok(Response::No));
+        assert_eq!(Response::from_str("n"),Ok(Response::No));
+        assert_eq!(Response::from_str("N"),Ok(Response::No));
+    }
+}
+
 //FIXME: seems to always return the default
 fn prompt_yes_no(default: Response) -> Response {
+    match default {
+        Response::Yes => print_inline!("[Y/n]"),
+        Response::No => print_inline!("[y/N]"),
+    }
     let mut line = String::new();
     std::io::stdin()
         .read_line(&mut line)
         .expect("Failed to read line");
-    let res = alt_complete!(
-        line.as_str(),
-        map!(re_match!(r"(?i)Y|Yes"), |_| Response::Yes) | map!(re_match!(r"(?i)N|No"), |_| {
-            Response::No
-        })
-    );
-    res.to_result().unwrap_or_else(|_| default)
+    Response::from_str(line.as_str()).unwrap_or_else(|_| default)
 }
 
 fn extract_version_and_id(url: &str) -> (u64, &str) {
@@ -300,7 +341,7 @@ pub fn check(
                         }
                         Ok((curse_mod.into(),Some(found.release_status)))
                     } else {
-                        format_colored!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
+                        format_coloredln!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
                         Ok((curse_mod.into(),None))
                     }
                 })
@@ -357,21 +398,21 @@ pub fn check(
                 let percent_alpha_compatible = (alpha_compatible as f32)/(total as f32) * 100.0;
                 println!("(although {:.1}% are compatible only in alpha release)",percent_alpha_compatible);
             }
-            println!("Upgrade now? [Y/n]");
+            print!("Upgrade now?");
             if prompt_yes_no(Response::Yes) == Response::Yes{
                 println!("Enter new pack name:");
                 let mut new_name = String::new();
                 std::io::stdin().read_line(&mut new_name).expect("Failed to read pack name. Is terminal broken?");
                 match min_required_status {
                     ReleaseStatus::Alpha if pack_update_status != ReleaseStatus::Alpha => {
-                        println!("This will mean your pack must use alpha status mods. Is this ok? [y/N]");
+                        print!("This will mean your pack must use alpha status mods. Is this ok?");
                         if prompt_yes_no(Response::No) == Response::No{
                             println!("Canceling upgrade");
                             return Ok(());
                         }
                     },
                     ReleaseStatus::Beta if pack_update_status != ReleaseStatus::Beta => {
-                        println!("This will mean your pack must use beta status mods. Is this ok? [y/N]");
+                        print!("This will mean your pack must use beta status mods. Is this ok?");
                         if prompt_yes_no(Response::No) == Response::No{
                             println!("Canceling upgrade");
                             return Ok(());
@@ -426,7 +467,7 @@ pub fn run(
                     if let Some(found) = found {
                         assert_eq!(curse_mod.id, found.id);
                         if found.version > curse_mod.version {
-                            print!("Replace {} {} with {} ({})? [Y/n]",
+                            print!("Replace {} {} with {} ({})?",
                                 curse_mod.id,
                                 curse_mod.version,
                                 found.version,
