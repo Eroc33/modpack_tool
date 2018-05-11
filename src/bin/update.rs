@@ -180,7 +180,7 @@ fn main() -> Result<()> {
                     "add" => {
                         let mod_url = args.value_of("mod_url").expect("mod_url is required!");
 
-                        Some(modpack_tool::cmds::add(pack_path, mod_url.to_owned()))
+                        Some(Box::new(modpack_tool::cmds::add(pack_path.to_owned(), mod_url.to_owned())))
                     }
                     _ => {
                         build_cli()

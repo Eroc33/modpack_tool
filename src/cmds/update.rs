@@ -59,7 +59,7 @@ fn add_launcher_profile(
     pack_name: String,
     version_id: VersionId,
     _log: &Logger,
-) -> Result<BoxFuture<()>> {
+) -> Result<impl Future<Item=(),Error=::Error> + Send + 'static> {
     use serde_json::value::Value;
 
     //de UNC prefix path, because apparently java can't handle it

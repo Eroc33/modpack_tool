@@ -1,12 +1,11 @@
 use std::path::PathBuf;
-use BoxFuture;
 use futures::prelude::*;
 use serde_json;
 use std::io::Cursor;
 
-pub fn add<P>(pack_path: P, mod_url: String) -> BoxFuture<()>
+pub fn add<P>(pack_path: P, mod_url: String) -> impl Future<Item=(),Error=::Error> + Send + 'static
 where
-    P: Into<PathBuf>,
+    P: Into<PathBuf> + 'static,
 {
     use types::ModpackConfig;
 
