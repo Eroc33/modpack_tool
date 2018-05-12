@@ -181,17 +181,6 @@ fn prompt_yes_no(prompt: String, default: Response) -> Response {
     }
 }
 
-fn get_attr<N>(node: N, name: &str) -> Option<String>
-where
-    N: Borrow<NodeDataRef<ElementData>>,
-{
-    node.borrow()
-        .attributes
-        .borrow()
-        .get(name)
-        .map(|s| s.to_owned())
-}
-
 //Checks if any curseforge projects have been moved, and updates the names
 fn update_project_names(mods: ModList) -> Vec<impl Future<Item=ModSource,Error=::Error> + Send + 'static>{
     let httpclient = HttpSimple::new();
@@ -211,6 +200,29 @@ fn update_project_names(mods: ModList) -> Vec<impl Future<Item=ModSource,Error=:
             mvn @ ModSource::MavenMod{..} => Box::new(futures::future::ok(mvn)),
         }
     }).collect()
+}
+
+trait SelectExt{
+    fn select(&self,selector: &'static str) -> kuchiki::iter::Select<kuchiki::iter::Elements<kuchiki::iter::Descendants>>;
+    fn select_first(&self,selector: &'static str) -> NodeDataRef<ElementData>{
+        self.select(selector).next().unwrap()
+    }
+    fn get_attr(&self, name: &str) -> Option<String>;
+}
+
+impl SelectExt for NodeDataRef<ElementData>{
+    fn select(&self,selector: &'static str) -> kuchiki::iter::Select<kuchiki::iter::Elements<kuchiki::iter::Descendants>>
+    {
+        self.as_node().select(selector).unwrap()
+    }
+    fn get_attr(&self, name: &str) -> Option<String>
+    {
+        self
+            .attributes
+            .borrow()
+            .get(name)
+            .map(|s| s.to_owned())
+    }
 }
 
 fn find_most_recent(
@@ -247,44 +259,17 @@ fn find_most_recent(
         let rows = doc.select("table.project-file-listing tbody tr")
             .map_err(|_| ::Error::Selector)?;
         for row in rows {
-            let row = row.as_node();
             let release_status =
-                get_attr(row.select(".project-file-release-type div")
-                                .map_err(|_| ::Error::Selector)?
-                                .next()
-                                .unwrap(),
-                            "title");
-            let files_cell = row.select(".project-file-name div")
-                .map_err(|_| ::Error::Selector)?
-                .next()
-                .unwrap();
-            let file_name = files_cell.as_node()
-                .select(".project-file-name-container .overflow-tip")
-                .map_err(|_| ::Error::Selector)?
-                .next()
-                .unwrap()
-                .text_contents();
-            //let more_files_url = file_name_container.attr("href");
-            let primary_file =
-                get_attr(files_cell.as_node()
-                                .select(".project-file-download-button a")
-                                .map_err(|_| ::Error::Selector)?
-                                .next()
-                                .unwrap(),
-                            "href");
-            let version_container = row.select(".project-file-game-version")
-                .map_err(|_| ::Error::Selector)?
-                .next()
-                .unwrap();
+                row.select_first(".project-file-release-type div").get_attr("title");
+            let files_cell = row.select_first(".project-file-name div");
+            let file_name = files_cell.select_first(".project-file-name-container .overflow-tip").text_contents();
+            let primary_file = files_cell.select_first(".project-file-download-button a").get_attr("href");
+            let version_container = row.select_first(".project-file-game-version");
             let mut game_versions: Vec<semver::Version> = vec![];
             if version_container.has_class(&("multiple".into()),CaseSensitivity::CaseSensitive){
-                let additional_versions = version_container.as_node().select(".additional-versions")
-                    .map_err(|_| ::Error::Selector)?
-                    .next()
-                    .unwrap();
-                let cell_ref = additional_versions.attributes.borrow();
-                if let Some(title) = cell_ref.get("title"){
-                    for version in TITLE_REGEX.split(title){
+                let additional_versions = version_container.select_first(".additional-versions");
+                if let Some(title) = additional_versions.get_attr("title"){
+                    for version in TITLE_REGEX.split(title.as_str()){
                         if !(version.is_empty() || version.starts_with("Java") || version.starts_with("java")){
                             //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
                             let version = if version.chars().filter(|&c| c=='.').count() == 1 {
@@ -297,11 +282,7 @@ fn find_most_recent(
                     }
                 }
             }
-            let primary_game_version = row.select(".project-file-game-version .version-label")
-                .map_err(|_| ::Error::Selector)?
-                .next()
-                .unwrap()
-                .text_contents();
+            let primary_game_version = row.select_first(".project-file-game-version .version-label").text_contents();
             //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
             let primary_game_version = if primary_game_version.chars().filter(|&c| c=='.').count() == 1 {
                 primary_game_version.to_owned() + ".0"
