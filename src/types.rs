@@ -333,24 +333,8 @@ impl ModpackConfig {
         self.mods.push(modsource);
     }
     pub fn add_mod_by_url(&mut self, mod_url: &str) -> ::Result<()> {
-        let modsource: ModSource = complete!(
-            &mod_url,
-            do_parse!(
-                tag_s!("https://minecraft.curseforge.com/projects/")
-                    >> id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/")
-                    >> version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str)
-                    >> opt!(tag_s!("/download")) >> (curseforge::Mod {
-                    id: id.to_owned(),
-                    version,
-                }.into())
-            )
-        ).to_full_result()
-            .map_err(|_| ::Error::BadModUrl {
-                url: mod_url.to_owned(),
-            })?;
-
+        let modsource: ModSource = curseforge::Mod::from_url(mod_url)?.into();
         self.replace_mod(modsource);
-
         Ok(())
     }
 

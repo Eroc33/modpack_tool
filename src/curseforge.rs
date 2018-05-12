@@ -32,6 +32,25 @@ impl Mod {
         let loc = format!("https://minecraft.curseforge.com/projects/{}/", self.id);
         Ok(Uri::from_str(&loc)?)
     }
+
+    pub fn from_url(url: &str) -> ::Result<Self>{
+        complete!(
+            &url,
+            do_parse!(
+                tag_s!("https://minecraft.curseforge.com/projects/") >>
+                id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/") >>
+                version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
+                opt!(tag_s!("/download")) >>
+                (Mod {
+                    id: id.to_owned(),
+                    version,
+                })
+            )
+        ).to_full_result()
+        .map_err(|_| ::Error::BadModUrl {
+            url: url.to_owned(),
+        })
+    }
 }
 
 impl ::cache::Cacheable for Mod {

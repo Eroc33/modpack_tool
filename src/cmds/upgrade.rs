@@ -104,8 +104,7 @@ lazy_static! {
 
 #[derive(Debug)]
 struct ModVersionInfo {
-    id: String,
-    version: u64,
+    modd: curseforge::Mod,
     file_name: String,
     download_url: Url,
     release_status: ReleaseStatus,
@@ -180,18 +179,6 @@ fn prompt_yes_no(prompt: String, default: Response) -> Response {
             Err(_) => println!("Please enter yes, no, or nothing."),
         }
     }
-}
-
-fn extract_version_and_id(url: &str) -> (u64, &str) {
-    let res = do_parse!{url,
-        tag_s!("https://minecraft.curseforge.com/projects/") >>
-        project: take_till_s!(|c: char| c=='/') >>
-        tag_s!("/files/") >>
-        ver: map_res!(take_while_s!(|c: char| c.is_digit(10)),u64::from_str) >>
-        opt!(tag_s!("/download")) >>
-        ((ver,project))
-    };
-    res.to_result().expect("Unknown modsource url")
 }
 
 fn get_attr<N>(node: N, name: &str) -> Option<String>
@@ -328,10 +315,8 @@ fn find_most_recent(
 
             if release_status.map(|status| target_release_status.accepts(&status)).unwrap_or(false) && game_versions.iter().any(|ver| target_game_version.matches(ver)){
                 let url = primary_file.map(|s| base_url.join(&s).unwrap()).unwrap();
-                let (version, _) = extract_version_and_id(url.as_str());
                 return Ok(Some(ModVersionInfo {
-                    id: project_name.to_string(),
-                    version,
+                    modd: curseforge::Mod::from_url(url.as_str())?,
                     file_name,
                     download_url: url,
                     release_status: release_status.unwrap(),
@@ -366,7 +351,7 @@ pub fn check(
                                             ReleaseStatus::Alpha))?;
                         if let Some(found) = found {
                             format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
-                            assert_eq!(curse_mod.id, found.id);
+                            assert_eq!(curse_mod.id, found.modd.id);
                             if found.release_status != ReleaseStatus::Release {
                                 let a_an = if found.release_status == ReleaseStatus::Alpha{
                                     "an"
@@ -461,6 +446,7 @@ pub fn check(
                     pack.name = new_name.to_owned();
                 }
 
+                //TODO: smarter dedup, where we keep the higher version number of mods with colliding ids
                 //dedup via hashset
                 pack.mods = compatible.into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
 
@@ -505,18 +491,15 @@ pub fn run(
                                             http_client.clone(),
                                             release_status))?;
                     if let Some(found) = found {
-                        assert_eq!(curse_mod.id, found.id);
-                        if found.version > curse_mod.version {
+                        assert_eq!(curse_mod.id, found.modd.id);
+                        if found.modd.version > curse_mod.version {
                             let prompt = format!("Replace {} {} with {} ({})?",
                                 curse_mod.id,
                                 curse_mod.version,
-                                found.version,
+                                found.modd.version,
                                 found.file_name);
                             if prompt_yes_no(prompt,Response::Yes) == Response::Yes {
-                                Some(ModSource::CurseforgeMod(curseforge::Mod {
-                                    id: found.id,
-                                    version: found.version,
-                                }))
+                                Some(found.modd.into())
                             } else {
                                 println!("\t skipping.");
                                 None
