@@ -436,9 +436,6 @@ pub fn check(
                 println!("(although {:.1}% are compatible only in alpha release)",percent_alpha_compatible);
             }
             if prompt_yes_no("Upgrade now?".into(),Response::Yes) == Response::Yes{
-                println!("Enter new pack name:");
-                let mut new_name = String::new();
-                std::io::stdin().read_line(&mut new_name).expect("Failed to read pack name. Is terminal broken?");
                 match min_required_status {
                     ReleaseStatus::Alpha if pack_update_status != ReleaseStatus::Alpha => {
                         if prompt_yes_no("This will mean your pack must use alpha status mods. Is this ok?".into(),Response::No) == Response::No{
@@ -454,9 +451,17 @@ pub fn check(
                     },
                     _ => {}
                 }
-                for modsource in compatible {
-                    pack.replace_mod(modsource);
+
+                println!("Enter new pack name (leave blank to keep old name):");
+                let mut new_name = String::new();
+                std::io::stdin().read_line(&mut new_name).expect("Failed to read pack name. Is terminal broken?");
+                let new_name = new_name.trim();
+
+                if !new_name.is_empty(){
+                    pack.name = new_name.to_owned();
                 }
+
+                pack.mods = compatible;
 
                 let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
                 serde_json::ser::to_writer_pretty(&mut file, &pack)?;
