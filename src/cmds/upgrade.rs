@@ -28,6 +28,8 @@ use termcolor::{ColorSpec, WriteColor};
 use termcolor::Color::*;
 use std::io::Write;
 
+use ::ModList;
+
 
 macro_rules! print_inline{
     ($($args:tt)+) => {{
@@ -203,6 +205,27 @@ where
         .map(|s| s.to_owned())
 }
 
+//Checks if any curseforge projects have been moved, and updates the names
+fn update_project_names(mods: ModList) -> Vec<impl Future<Item=ModSource,Error=::Error> + Send + 'static>{
+    let httpclient = HttpSimple::new();
+    mods.into_iter().map(|modd|{
+        let httpclient = httpclient.clone();
+        match modd {
+            ModSource::CurseforgeMod(cfm) => {
+                Box::new(async_block!{
+                    let (_res,url) = await!(httpclient.get_following_redirects(cfm.project_uri()?)?)?;
+                    let id = ::curseforge::parse_modid_from_url(url.as_str()).expect("Bad redirect on curseforge?");
+                    Ok(ModSource::CurseforgeMod(::curseforge::Mod{
+                        id,
+                        ..cfm
+                    }))
+                }) as Box<Future<Item=ModSource,Error=::Error> + Send>
+            }
+            mvn @ ModSource::MavenMod{..} => Box::new(futures::future::ok(mvn)),
+        }
+    }).collect()
+}
+
 fn find_most_recent(
     project_name: String,
     target_game_version: semver::VersionReq,
@@ -211,7 +234,7 @@ fn find_most_recent(
 ) -> impl Future<Item = Option<ModVersionInfo>, Error = ::Error> + Send {
     lazy_static! {
         static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)")
-            .expect("Couldn't compie pre-checked regex");
+            .expect("Couldn't compile pre-checked regex");
     }
 
     const BASE_URL: &str = "https://minecraft.curseforge.com";
@@ -324,67 +347,63 @@ use curseforge;
 use types::{ModSource, ModpackConfig};
 
 pub fn check(
-    target_game_version: &semver::VersionReq,
+    target_game_version: semver::VersionReq,
     pack_path: String,
     mut pack: ModpackConfig,
 ) -> impl Future<Item = (), Error = ::Error> + Send + 'static {
     let http_client = HttpSimple::new();
 
-    let check_futures: Vec<_> = pack.mods
-        .clone()
-        .into_iter()
-        .map(|modd| match modd {
-            ModSource::CurseforgeMod(curse_mod) => {
-                let http_client_handle = http_client.clone();
-                let captured_target_game_version = target_game_version.clone();
-                Box::new(async_block!{
-                    let found = await!(find_most_recent(curse_mod.id.clone(),
-                                      captured_target_game_version.clone(),
-                                      http_client_handle,
-                                      ReleaseStatus::Alpha))?;
-                    if let Some(found) = found {
-                        format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
-                        assert_eq!(curse_mod.id, found.id);
-                        if found.release_status != ReleaseStatus::Release {
-                            let a_an = if found.release_status == ReleaseStatus::Alpha{
-                                "an"
-                            }else if found.release_status == ReleaseStatus::Beta{
-                                "a"
+    let strm = futures::stream::futures_unordered(update_project_names(pack.mods.clone()))
+        .and_then(move |modd|{
+            let target_game_version = target_game_version.clone();
+            let http_client_handle = http_client.clone();
+            async_block!{
+                match modd{
+                    ModSource::CurseforgeMod(curse_mod) => {
+                        let found = await!(find_most_recent(curse_mod.id.clone(),
+                                            target_game_version,
+                                            http_client_handle,
+                                            ReleaseStatus::Alpha))?;
+                        if let Some(found) = found {
+                            format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
+                            assert_eq!(curse_mod.id, found.id);
+                            if found.release_status != ReleaseStatus::Release {
+                                let a_an = if found.release_status == ReleaseStatus::Alpha{
+                                    "an"
+                                }else if found.release_status == ReleaseStatus::Beta{
+                                    "a"
+                                }else{
+                                    unreachable!("Status was not release, alpha, or beta")
+                                };
+                                format_coloredln!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)", a_an, found.release_status.value() } );
                             }else{
-                                unreachable!("Status was not release, alpha, or beta")
-                            };
-                            format_coloredln!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)", a_an, found.release_status.value() } );
-                        }else{
-                            format_coloredln!((*COLOR_OUTPUT); "" );
+                                format_coloredln!((*COLOR_OUTPUT); "" );
+                            }
+                            Ok((curse_mod.into(),Some(found.release_status)))
+                        } else {
+                            format_coloredln!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
+                            Ok((curse_mod.into(),None))
                         }
-                        Ok((curse_mod.into(),Some(found.release_status)))
-                    } else {
-                        format_coloredln!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
-                        Ok((curse_mod.into(),None))
                     }
-                })
-                    as Box<
-                        Future<Item = (ModSource, Option<ReleaseStatus>), Error = ::Error> + Send,
-                    >
+                    ModSource::MavenMod { artifact, repo } => {
+                        format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"you must check maven mod: {:?}",artifact});
+                        Ok((ModSource::MavenMod { artifact, repo },None))
+                    },
+                }
             }
-            ModSource::MavenMod { artifact, repo } => Box::new(async_block!{
-                format_colored!((*COLOR_OUTPUT); (&WARN_COLOR){"you must check maven mod: {:?}",artifact});
-                Ok((ModSource::MavenMod { artifact, repo },None))
-            }),
-        })
-        .collect();
+        });
 
     async_block!{
+
+        let modlist: Vec<(ModSource,Option<ReleaseStatus>)> = await!(strm.collect())?;
+
         let mut total = 0usize;
         let mut alpha_compatible = 0usize;
         let mut beta_compatible = 0usize;
         let mut compatible = vec![];
         let mut incompatible = vec![];
 
-        let strm = futures::stream::futures_unordered(check_futures);
-
-        #[async]
-        for (modd,status) in strm{
+        for (modd,status) in modlist{
             total += 1;
             match status{
                 None => incompatible.push(modd),
@@ -471,7 +490,7 @@ pub fn run(
         let mut new_mods = vec![];
         //FIXME: ideally we would borrow pack.mods to iterate over it, but for now we can't due to
         //       borrow tracing limitations in generators
-        let old_mods = pack.mods.clone();
+        let old_mods = await!(futures::future::join_all(update_project_names(pack.mods.clone())))?;
         for modd in old_mods{
             let updated = match modd {
                 ModSource::CurseforgeMod(curse_mod) => {

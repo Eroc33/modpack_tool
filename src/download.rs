@@ -144,6 +144,16 @@ impl HttpSimple {
         )
     }
 
+    pub fn get_following_redirects(&self, uri: Uri) -> Result<RedirectFollower> {
+        self.request_following_redirects(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri(uri)
+                .body(hyper::Body::empty())
+                .expect("error constructing request"),
+        )
+    }
+
     pub fn request(&self, request: Request<hyper::Body>) -> hyper::client::ResponseFuture {
         match request.uri().scheme_part().cloned() {
             Some(ref scheme) if scheme == &http::uri::Scheme::HTTP => {

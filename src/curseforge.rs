@@ -5,6 +5,20 @@ use download;
 
 const CACHE_DIR: &str = "./curse_cache/";
 
+pub fn parse_modid_from_url(url: &str) -> Result<String,::Error>{
+    complete!(
+        url,
+        do_parse!(
+            tag_s!("https://minecraft.curseforge.com/projects/") >>
+            id: take_till_s!(|c: char| c == '/') >> 
+            (id.to_owned())
+        )
+    ).to_full_result()
+    .map_err(|_| ::Error::BadModUrl {
+        url: url.to_owned(),
+    })
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mod {
     pub id: String,

@@ -40,7 +40,7 @@ fn build_cli() -> clap::App<'static, 'static> {
             clap::SubCommand::with_name("dev")
             .about("Commands for modpack developers")
             .subcommands(vec![
-                clap::SubCommand::with_name("try_upgrade")
+                clap::SubCommand::with_name("upgrade")
                 .about("Checks upgrade compatibility for this pack from one minecraft version to the next.")
                 .arg(clap::Arg::with_name("pack_file")
                     .required(true)
@@ -50,17 +50,10 @@ fn build_cli() -> clap::App<'static, 'static> {
                     .required(true)
                     .index(2)
                     .help("The minecraft version to upgrade to"))
-                ,
-                clap::SubCommand::with_name("do_upgrade")
-                .about("Upgrades this pack from one minecraft version to the next.")
-                .arg(clap::Arg::with_name("pack_file")
-                    .required(true)
-                    .index(1)
-                    .help("The metadata json file for the pack you wish to modify"))
-                .arg(clap::Arg::with_name("mc_version")
-                    .required(true)
-                    .index(2)
-                    .help("The minecraft version to upgrade to"))
+                .arg(clap::Arg::with_name("force")
+                    .short("f")
+                    .long("force")
+                    .help("run upgrade without checking"))
                 ,
                 clap::SubCommand::with_name("add")
                 .about("Adds a mod to the provided pack file")
@@ -130,7 +123,7 @@ fn main() -> Result<()> {
                     .expect("pack_file is required due to arg parser");
 
                 match sub_cmd {
-                    "try_upgrade" | "do_upgrade" => {
+                    "upgrade" => {
                         let ver = args.value_of("mc_version")
                             .expect("mc_version is required due to arg parser");
 
@@ -154,19 +147,20 @@ fn main() -> Result<()> {
                             "Second argument ({}) was not a semver version requirement",
                             ver
                         ))?;
-                        match sub_cmd {
-                            "try_upgrade" => Some(Box::new(modpack_tool::cmds::upgrade::check(
-                                &ver,
+                        match args.is_present("force") {
+                            false => Some(Box::new(modpack_tool::cmds::upgrade::check(
+                                ver,
                                 pack_path.to_owned(),
                                 pack,
                             ))),
-                            "do_upgrade" => {
+                            true => {
                                 let release_status = pack.auto_update_release_status
                                     .ok_or(modpack_tool::Error::AutoUpdateDisabled)
                                     .context(format!(
                                         "Pack {} has no auto_update_release_status",
                                         pack_path
                                     ))?;
+                                println!("Bypassing upgrade compatibility check.");
                                 Some(Box::new(modpack_tool::cmds::upgrade::run(
                                     ver,
                                     pack_path.to_owned(),
@@ -174,7 +168,6 @@ fn main() -> Result<()> {
                                     release_status,
                                 )))
                             }
-                            _ => unreachable!(),
                         }
                     }
                     "add" => {
