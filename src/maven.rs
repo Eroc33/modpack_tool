@@ -23,7 +23,7 @@ pub enum VerifyResult {
     NotInCache,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MavenArtifact {
     pub group: String,
     pub artifact: String,

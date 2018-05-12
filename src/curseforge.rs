@@ -19,7 +19,7 @@ pub fn parse_modid_from_url(url: &str) -> Result<String,::Error>{
     })
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Mod {
     pub id: String,
     pub version: u64,

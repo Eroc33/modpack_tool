@@ -50,7 +50,7 @@ impl FromStr for ReleaseStatus {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ModSource {
     CurseforgeMod(curseforge::Mod),
     MavenMod {

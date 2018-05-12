@@ -461,7 +461,8 @@ pub fn check(
                     pack.name = new_name.to_owned();
                 }
 
-                pack.mods = compatible;
+                //dedup via hashset
+                pack.mods = compatible.into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
 
                 let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
                 serde_json::ser::to_writer_pretty(&mut file, &pack)?;
