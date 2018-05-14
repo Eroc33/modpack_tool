@@ -222,6 +222,19 @@ impl SelectExt for NodeDataRef<ElementData>{
     }
 }
 
+fn curseforge_ver_to_semver<S>(version: S) -> semver::Version
+    where S: Into<String>
+{
+    let version = version.into();
+    //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
+    let version = if version.chars().filter(|&c| c=='.').count() == 1 {
+        version + ".0"
+    }else{
+        version
+    };
+    semver::Version::parse(version.as_str()).expect("Bad version from curseforge.com")
+}
+
 fn find_most_recent(
     project_name: String,
     target_game_version: semver::VersionReq,
@@ -268,25 +281,13 @@ fn find_most_recent(
                 if let Some(title) = additional_versions.get_attr("title"){
                     for version in TITLE_REGEX.split(title.as_str()){
                         if !(version.is_empty() || version.starts_with("Java") || version.starts_with("java")){
-                            //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
-                            let version = if version.chars().filter(|&c| c=='.').count() == 1 {
-                                version.to_owned() + ".0"
-                            }else{
-                                version.to_owned()
-                            };
-                            game_versions.push(semver::Version::parse(version.as_str()).expect("Bad version from curseforge.com"));
+                            game_versions.push(curseforge_ver_to_semver(version));
                         }
                     }
                 }
             }
             let primary_game_version = row.select_first(".project-file-game-version .version-label").text_contents();
-            //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
-            let primary_game_version = if primary_game_version.chars().filter(|&c| c=='.').count() == 1 {
-                primary_game_version.to_owned() + ".0"
-            }else{
-                primary_game_version.to_owned()
-            };
-            game_versions.push(semver::Version::parse(primary_game_version.as_str()).expect("Bad version from curseforge.com"));
+            game_versions.push(curseforge_ver_to_semver(primary_game_version));
 
             let release_status =
             release_status.map(|status| status.parse().expect("Invalid ReleaseStatus"));
