@@ -37,6 +37,16 @@ macro_rules! print_inline{
     }};
 }
 
+macro_rules! readln{
+    () => {{
+        let mut new_name = String::new();
+        if let Err(e) = std::io::stdin().read_line(&mut new_name){
+            panic!("Failed to read stdin: {}",e);
+        }
+        new_name
+    }};
+}
+
 macro_rules! format_coloredln{
     ($output:expr; $($rest:tt)+ ) => {
         let mut buf = $output.buffer();
@@ -166,10 +176,7 @@ fn prompt_yes_no(prompt: String, default: Response) -> Response {
             Response::Yes => print_inline!("{}[Y/n]",prompt),
             Response::No => print_inline!("{}[y/N]",prompt),
         }
-        let mut line = String::new();
-        std::io::stdin()
-            .read_line(&mut line)
-            .expect("Failed to read line");
+        let line = readln!();
         match Response::from_str(line.as_str()){
             Ok(Some(r)) => return r,
             Ok(None) => return default,
@@ -417,8 +424,7 @@ pub fn new_version(
                 }
 
                 println!("Enter new pack name (leave blank to keep old name):");
-                let mut new_name = String::new();
-                std::io::stdin().read_line(&mut new_name).expect("Failed to read pack name. Is terminal broken?");
+                let mut new_name = readln!();
                 let new_name = new_name.trim();
 
                 if !new_name.is_empty(){
