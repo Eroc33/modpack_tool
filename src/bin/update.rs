@@ -46,14 +46,9 @@ fn build_cli() -> clap::App<'static, 'static> {
                     .required(true)
                     .index(1)
                     .help("The metadata json file for the pack you wish to modify"))
-                .arg(clap::Arg::with_name("mc_version")
-                    .required(true)
+                .arg(clap::Arg::with_name("version")
                     .index(2)
                     .help("The minecraft version to upgrade to"))
-                .arg(clap::Arg::with_name("force")
-                    .short("f")
-                    .long("force")
-                    .help("run upgrade without checking"))
                 ,
                 clap::SubCommand::with_name("add")
                 .about("Adds a mod to the provided pack file")
@@ -124,50 +119,44 @@ fn main() -> Result<()> {
 
                 match sub_cmd {
                     "upgrade" => {
-                        let ver = args.value_of("mc_version")
-                            .expect("mc_version is required due to arg parser");
-
                         let file = std::fs::File::open(&pack_path)
                             .context(format!("pack {} does not exist", pack_path))?;
                         let pack: ModpackConfig =
                             ModpackConfig::load(file).context(format!("pack file in bad format"))?;
 
-                        let ver = if ver.chars()
+                        if let Some(ver) = args.value_of("mc_version"){
+                            let ver = if ver.chars()
                             .next()
                             .expect("mc_version should not have length 0 due to arg parser")
                             .is_numeric()
-                        {
-                            //interpret a versionreq of x as ~x
-                            println!("Interpreting version {} as ~{}", ver, ver);
-                            format!("~{}", ver)
-                        } else {
-                            ver.to_owned()
-                        };
-                        let ver = semver::VersionReq::parse(ver.as_str()).context(format!(
-                            "Second argument ({}) was not a semver version requirement",
-                            ver
-                        ))?;
-                        match args.is_present("force") {
-                            false => Some(Box::new(modpack_tool::cmds::upgrade::check(
+                            {
+                                //interpret a versionreq of x as ~x
+                                println!("Interpreting version {} as ~{}", ver, ver);
+                                format!("~{}", ver)
+                            } else {
+                                ver.to_owned()
+                            };
+                            let ver = semver::VersionReq::parse(ver.as_str()).context(format!(
+                                "Second argument ({}) was not a semver version requirement",
+                                ver
+                            ))?;
+                            Some(Box::new(modpack_tool::cmds::upgrade::new_version(
                                 ver,
                                 pack_path.to_owned(),
                                 pack,
-                            ))),
-                            true => {
-                                let release_status = pack.auto_update_release_status
-                                    .ok_or(modpack_tool::Error::AutoUpdateDisabled)
-                                    .context(format!(
-                                        "Pack {} has no auto_update_release_status",
-                                        pack_path
-                                    ))?;
-                                println!("Bypassing upgrade compatibility check.");
-                                Some(Box::new(modpack_tool::cmds::upgrade::run(
-                                    ver,
-                                    pack_path.to_owned(),
-                                    pack,
-                                    release_status,
-                                )))
-                            }
+                            )))
+                        }else{
+                            let release_status = pack.auto_update_release_status
+                                .ok_or(modpack_tool::Error::AutoUpdateDisabled)
+                                .context(format!(
+                                    "Pack {} has no auto_update_release_status",
+                                    pack_path
+                                ))?;
+                            Some(Box::new(modpack_tool::cmds::upgrade::same_version(
+                                pack_path.to_owned(),
+                                pack,
+                                release_status,
+                            )))
                         }
                     }
                     "add" => {

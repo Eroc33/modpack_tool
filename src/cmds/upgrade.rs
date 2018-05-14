@@ -9,7 +9,6 @@ use termcolor;
 use selectors::Element;
 use selectors::attr::CaseSensitivity;
 use std;
-use tokio;
 use nom;
 
 use futures::prelude::*;
@@ -17,10 +16,8 @@ use kuchiki::{ElementData, NodeDataRef};
 use kuchiki::traits::TendrilSink;
 use download::HttpSimple;
 use types::ReleaseStatus;
-use std::borrow::Borrow;
 use std::io::Cursor;
 use std::sync::Arc;
-use std::str::FromStr;
 use url::Url;
 use regex::Regex;
 
@@ -312,7 +309,7 @@ fn find_most_recent(
 use curseforge;
 use types::{ModSource, ModpackConfig};
 
-pub fn check(
+pub fn new_version(
     target_game_version: semver::VersionReq,
     pack_path: String,
     mut pack: ModpackConfig,
@@ -451,13 +448,14 @@ pub fn check(
     }
 }
 
-pub fn run(
-    target_game_version: semver::VersionReq,
+pub fn same_version(
     pack_path: String,
     mut pack: ModpackConfig,
     release_status: ReleaseStatus,
 ) -> impl Future<Item = (), Error = ::Error> + Send + 'static {
     let http_client = HttpSimple::new();
+
+    let target_game_version = pack.version.clone();
 
     async_block!{
         let mut new_mods = vec![];
