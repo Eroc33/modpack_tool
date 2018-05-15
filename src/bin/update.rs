@@ -11,8 +11,10 @@ extern crate slog;
 extern crate failure;
 extern crate slog_json;
 extern crate slog_term;
+extern crate slog_stdlog;
 extern crate tokio;
 extern crate zip;
+extern crate sentry;
 
 use failure::*;
 
@@ -23,6 +25,7 @@ use modpack_tool::types::*;
 use slog::{Drain, Logger};
 
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
 fn build_cli() -> clap::App<'static, 'static> {
     clap::App::new("modpacktool-update")
@@ -65,7 +68,10 @@ fn build_cli() -> clap::App<'static, 'static> {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
+    let _sentry = sentry::init("https://0b0da309fa014d60b7b5e6a9da40529e@sentry.io/1207316");
+    sentry::integrations::panic::register_panic_handler();
+    let mut builder = env_logger::Builder::from_default_env();
+    sentry::integrations::log::init(Some(Box::new(builder.build())), Default::default());
     let matches = match build_cli().get_matches_safe(){
         Ok(matches) => matches,
         Err(e) => {
@@ -85,7 +91,8 @@ fn main() -> Result<()> {
 
     let root = Logger::root(
         Arc::new(Mutex::new(
-            slog::Duplicate::new(slog_term::term_compact(), log_file_stream).fuse(),
+            slog::Duplicate::new(slog_stdlog::StdLog.filter_level(slog::Level::Warning),
+                slog::Duplicate::new(slog_term::term_compact(), log_file_stream)).fuse(),
         )).ignore_res(),
         o!(),
     );
@@ -94,12 +101,20 @@ fn main() -> Result<()> {
     let run: Option<Box<Future<Item = (), Error = modpack_tool::Error> + Send>> =
         match matches.subcommand() {
             ("update", Some(args)) => {
-                let pack_path = args.value_of("pack_file").expect("pack_file is required!");
+                let pack_path: PathBuf = args.value_of("pack_file").expect("pack_file is required!").into();
 
-                Some(Box::new(modpack_tool::cmds::update(
-                    pack_path.to_owned(),
-                    log.clone(),
-                )))
+                if !pack_path.exists(){
+                    eprintln!("{:?} is not an accesible path",pack_path);
+                    None
+                } else if !pack_path.is_file(){
+                    eprintln!("No file exists at the path {:?}",pack_path);
+                    None
+                }else{
+                    Some(Box::new(modpack_tool::cmds::update(
+                        pack_path,
+                        log.clone(),
+                    )))
+                }
             }
             ("dev", Some(args)) => {
                 let sub_cmd = match args.subcommand_name() {
@@ -188,6 +203,10 @@ fn main() -> Result<()> {
     let (tx, rx) = std::sync::mpsc::channel::<Result<()>>();
     tokio::run(
         run.then(move |res|{
+            if let Err(ref e) = res{
+                println!("Reporting error to sentry");
+                sentry::integrations::failure::capture_fail(e);
+            }
             tx.send(res).expect("Send failure while sending error");
             Ok(())
         })

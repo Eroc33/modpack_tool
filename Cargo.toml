@@ -16,6 +16,7 @@ lazy_static = "1.0"
 log = "*"
 regex = "0.2.2"
 selectors = "0.19.0"
+sentry = "0.5.1"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -38,7 +39,7 @@ git = "https://github.com/alexcrichton/futures-await.git"
 git = "https://github.com/hyperium/hyper.git"
 
 [dependencies.hyper-tls]
-git = "https://github.com/hyperium/hyper-tls"
+git = "https://github.com/hyperium/hyper-tls.git"
 
 [dependencies.nom]
 features = ["regexp"]

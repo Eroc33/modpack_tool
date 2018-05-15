@@ -16,13 +16,13 @@ use cache::Cacheable;
 use util;
 use fs_futures;
 
-pub fn update(path: String, log: Logger) -> BoxFuture<()> {
+pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
     let download_manager = DownloadManager::new();
 
     info!(log, "loading pack config");
     Box::new(async_block!{
-        let file = std::fs::File::open(path.clone()).context(format!("{} is not a file",&path))?;
-        let pack = ModpackConfig::load(file).context(format!("{} is not a valid modpack config",&path))?;
+        let file = std::fs::File::open(path.clone()).context(format!("{:?} is not a file",&path))?;
+        let pack = ModpackConfig::load(file).context(format!("{:?} is not a valid modpack config",&path))?;
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());

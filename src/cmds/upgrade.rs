@@ -424,7 +424,7 @@ pub fn new_version(
                 }
 
                 println!("Enter new pack name (leave blank to keep old name):");
-                let mut new_name = readln!();
+                let new_name = readln!();
                 let new_name = new_name.trim();
 
                 if !new_name.is_empty(){
