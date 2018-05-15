@@ -11,6 +11,8 @@ variables:
 
 before_script:
   - apt-get update -yq
+  - rustup update nightly
+  - rustup default nightly
 
 test:
   stage: test
