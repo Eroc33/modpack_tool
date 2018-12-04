@@ -97,8 +97,8 @@ impl MavenCache {
                 let cached_sha = sha.digest();
 
                 let sha_uri = sha_url_res?;
-                let (res,_) = await!(manager.get(sha_uri)?)?;
-                let hash_str = await!(res.into_body()
+                let (res,_) = self::await!(manager.get(sha_uri)?)?;
+                let hash_str = self::await!(res.into_body()
                     .map_err(download::Error::from)
                     .fold(String::new(),
                             |mut buf, chunk| -> Result<String, download::Error> {

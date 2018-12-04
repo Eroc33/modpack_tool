@@ -95,7 +95,7 @@ impl Downloadable for ModSource {
             }
             ModSource::MavenMod { repo, artifact } => Box::new(async_block!{
                 let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
-                await!(artifact.download_from(location.as_ref(), repo, manager, log))?;
+                self::await!(artifact.download_from(location.as_ref(), repo, manager, log))?;
                 Ok(())
             }),
         }
@@ -217,7 +217,7 @@ impl Downloadable for MCLibraryListing {
         };
         if let Some(resolved_artifact) = resolved_artifact {
             location.push(resolved_artifact.to_path());
-            await!(resolved_artifact.download(location, manager, log))?;
+            self::await!(resolved_artifact.download(location, manager, log))?;
         }
         Ok(())
     }

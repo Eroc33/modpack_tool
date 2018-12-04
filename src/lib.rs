@@ -1,4 +1,4 @@
-#![feature(custom_derive, slice_patterns, never_type, generators, proc_macro, proc_macro_non_items)]
+#![feature(custom_derive, slice_patterns, never_type, generators, proc_macro_hygiene)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -43,7 +43,6 @@ pub mod types;
 pub mod forge_version;
 pub mod hash_writer;
 pub mod hacks;
-pub mod fs_futures;
 pub mod cmds;
 
 pub use download::Downloadable;

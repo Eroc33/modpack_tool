@@ -101,7 +101,7 @@ impl Downloadable for Url {
         let url = self.clone();
         Box::new(async_block!{
             let uri = util::url_to_uri(&url)?;
-            await!(uri.download(location, manager, log))?;
+            self::await!(uri.download(location, manager, log))?;
             Ok(())
         })
     }
@@ -263,7 +263,7 @@ impl DownloadManager {
             }
 
             trace!(log,"Doing the request now");
-            let (res,url) = await!(http_client.request_following_redirects(request)?)?;
+            let (res,url) = self::await!(http_client.request_following_redirects(request)?)?;
             trace!(log,"Request done");
 
             if res.status() == http::StatusCode::NOT_MODIFIED {
@@ -275,7 +275,7 @@ impl DownloadManager {
                     path.push(get_url_filename(&url));
                 }
                 trace!(log,"Saving the file to {}",path.as_path().to_string_lossy());
-                await!(util::save_stream_to_file(res.into_body(), path))?;
+                self::await!(util::save_stream_to_file(res.into_body(), path))?;
                 Ok(())
             }
         };

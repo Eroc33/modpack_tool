@@ -18,10 +18,10 @@ where
 {
     let path = path.into();
     async_block!{
-        let file = await!(tokio::fs::File::open(path.clone()))?;
-        let out = await!(f(file))?;
-        let out_file = await!(tokio::fs::File::create(path))?;
-        await!(tokio::io::copy(out,out_file))?;
+        let file = self::await!(tokio::fs::File::open(path.clone()))?;
+        let out = self::await!(f(file))?;
+        let out_file = self::await!(tokio::fs::File::create(path))?;
+        self::await!(tokio::io::copy(out,out_file))?;
         Ok(())
     }
 }

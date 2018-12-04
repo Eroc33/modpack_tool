@@ -1,6 +1,5 @@
 use download::{self, DownloadManager};
 use futures::future;
-#[macro_use]
 use futures::prelude::*;
 use slog::Logger;
 use std::fs;
@@ -42,7 +41,7 @@ pub trait Cache<T: Cacheable + Send + 'static> {
         manager: DownloadManager,
         log: Logger,
     ) -> ::download::Result<()> {
-        let cached_path = await!(Self::with(t, manager, log.clone()))?;
+        let cached_path = self::await!(Self::with(t, manager, log.clone()))?;
         info!(log, "installing item"; "location"=>location.as_path().to_string_lossy().into_owned());
 
         fs::create_dir_all(&location)?;

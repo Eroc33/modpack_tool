@@ -193,7 +193,7 @@ fn update_project_names(mods: ModList) -> Vec<impl Future<Item=ModSource,Error=:
         match modd {
             ModSource::CurseforgeMod(cfm) => {
                 Box::new(async_block!{
-                    let (_res,url) = await!(httpclient.get_following_redirects(cfm.project_uri()?)?)?;
+                    let (_res,url) = self::await!(httpclient.get_following_redirects(cfm.project_uri()?)?)?;
                     let id = ::curseforge::parse_modid_from_url(url.as_str()).expect("Bad redirect on curseforge?");
                     Ok(ModSource::CurseforgeMod(::curseforge::Mod{
                         id,
@@ -260,7 +260,7 @@ fn find_most_recent(
         .unwrap();
     async_block!{
         let uri = ::util::url_to_uri(&scrape_url)?;
-        let body = await!(http_client.get(uri)
+        let body = self::await!(http_client.get(uri)
                 .map_err(::Error::from)
                 .and_then(move |res| {
                     res.into_body().map_err(::Error::from).fold(vec![],
@@ -331,7 +331,7 @@ pub fn new_version(
             async_block!{
                 match modd{
                     ModSource::CurseforgeMod(curse_mod) => {
-                        let found = await!(find_most_recent(curse_mod.id.clone(),
+                        let found = self::await!(find_most_recent(curse_mod.id.clone(),
                                             target_game_version,
                                             http_client_handle,
                                             ReleaseStatus::Alpha))?;
@@ -366,7 +366,7 @@ pub fn new_version(
 
     async_block!{
 
-        let modlist: Vec<(ModSource,Option<ReleaseStatus>)> = await!(strm.collect())?;
+        let modlist: Vec<(ModSource,Option<ReleaseStatus>)> = self::await!(strm.collect())?;
 
         let mut total = 0usize;
         let mut alpha_compatible = 0usize;
@@ -468,11 +468,11 @@ pub fn same_version(
         let mut new_mods = vec![];
         //FIXME: ideally we would borrow pack.mods to iterate over it, but for now we can't due to
         //       borrow tracing limitations in generators
-        let old_mods = await!(futures::future::join_all(update_project_names(pack.mods.clone())))?;
+        let old_mods = self::await!(futures::future::join_all(update_project_names(pack.mods.clone())))?;
         for modd in old_mods{
             let updated = match modd {
                 ModSource::CurseforgeMod(curse_mod) => {
-                    let found = await!(find_most_recent(curse_mod.id.clone(),
+                    let found = self::await!(find_most_recent(curse_mod.id.clone(),
                                             target_game_version.clone(),
                                             http_client.clone(),
                                             release_status))?;

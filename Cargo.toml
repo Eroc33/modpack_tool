@@ -9,14 +9,17 @@ clap = "2.24"
 env_logger = "0.5"
 failure = "0.1.1"
 failure_derive = "0.1.1"
+futures-await = "0.1.1"
 html5ever = "0.22.0"
 http = "0.1.5"
+hyper = "0.12.16"
+hyper-tls = "0.3.1"
 kuchiki = "0.7"
 lazy_static = "1.0"
 log = "*"
 regex = "0.2.2"
-selectors = "0.19.0"
-sentry = "0.5.1"
+selectors = "0.20.0"
+sentry = "0.12.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -31,15 +34,6 @@ tokio-io = "0.1.6"
 tokio-threadpool = "0.1.3"
 url = "1.4"
 zip = "0.2"
-
-[dependencies.futures-await]
-git = "https://github.com/alexcrichton/futures-await.git"
-
-[dependencies.hyper]
-git = "https://github.com/hyperium/hyper.git"
-
-[dependencies.hyper-tls]
-git = "https://github.com/hyperium/hyper-tls.git"
 
 [dependencies.nom]
 features = ["regexp"]

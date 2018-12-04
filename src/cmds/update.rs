@@ -14,7 +14,6 @@ use maven;
 use types::*;
 use cache::Cacheable;
 use util;
-use fs_futures;
 
 pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
     let download_manager = DownloadManager::new();
@@ -36,8 +35,8 @@ pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
                 .join(download_modlist(pack_path.clone(), mods, download_manager.clone(), &log))
             );
 
-        let (id, _) = await!(joint_task)?;
-        await!(add_launcher_profile(&pack_path, pack_name, id, &log)?)?;
+        let (id, _) = self::await!(joint_task)?;
+        self::await!(add_launcher_profile(&pack_path, pack_name, id, &log)?)?;
         info!(log,"Done");
         Ok(())
     })
@@ -121,13 +120,13 @@ fn download_modlist(
 
     Box::new(async_block!{
         pack_path.push("mods");
-        await!(fs_futures::create_dir_all(pack_path.clone()))?;
+        self::await!(tokio::fs::create_dir_all(pack_path.clone()))?;
 
         #[async]
-        for entry in fs_futures::read_dir(pack_path.clone())? {
-            await!(fs_futures::remove_file(entry.path().clone()))?;
+        for entry in self::await!(tokio::fs::read_dir(pack_path.clone()))? {
+            self::await!(tokio::fs::remove_file(entry.path().clone()))?;
         }
-        await!(mod_list.download(pack_path, manager, log))?;
+        self::await!(mod_list.download(pack_path, manager, log))?;
         Ok(())
     })
 }
@@ -155,11 +154,11 @@ fn install_forge(
 
     Box::new(async_block!{
         trace!(log,"Creating pack folder");
-        await!(fs_futures::create_dir_all(pack_path.clone()))?;
+        self::await!(tokio::fs::create_dir_all(pack_path.clone()))?;
         trace!(log,"Created pack folder");
 
         let forge_maven_artifact_path = forge_artifact.to_path();
-        let reader = await!(forge_artifact.clone().reader(manager.clone(), log.clone()))?;
+        let reader = self::await!(forge_artifact.clone().reader(manager.clone(), log.clone()))?;
 
         debug!(log, "Opening forge jar");
         let mut zip_reader = zip::ZipArchive::new(reader)?;
@@ -178,13 +177,13 @@ fn install_forge(
         mc_path.push("versions");
         mc_path.push(version_id.as_str());
         debug!(log, "creating profile folder");
-        await!(fs_futures::create_dir_all(mc_path.clone()))?;
+        self::await!(tokio::fs::create_dir_all(mc_path.clone()))?;
 
         mc_path.push(format!("{}.json", version_id.as_str()));
 
         debug!(log, "saving version json to minecraft install loc");
 
-        let mut version_file = await!(tokio::fs::File::create(mc_path.clone()))?;
+        let mut version_file = self::await!(tokio::fs::File::create(mc_path.clone()))?;
         //TODO: figure out how to use tokio copy here
         //note zip_reader.by_name() returns a ZipFile and ZipFile: !Send
         std::io::copy(&mut zip_reader.by_name("version.json")?,
@@ -198,7 +197,7 @@ fn install_forge(
         mc_path.push(forge_maven_artifact_path);
         mc_path.pop(); //pop the filename
 
-        await!(forge_artifact.install_at_no_classifier(mc_path, manager, log))?;
+        self::await!(forge_artifact.install_at_no_classifier(mc_path, manager, log))?;
         Ok(VersionId(version_id))
     })
 }

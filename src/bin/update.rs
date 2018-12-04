@@ -1,4 +1,4 @@
-#![feature(proc_macro, custom_derive, plugin, slice_patterns, generators, proc_macro_non_items)]
+#![feature(custom_derive, plugin, slice_patterns, generators, proc_macro_hygiene)]
 
 extern crate clap;
 extern crate env_logger;
