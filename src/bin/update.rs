@@ -18,7 +18,6 @@ extern crate sentry;
 
 use failure::*;
 
-use futures::prelude::*;
 use modpack_tool::Result;
 use modpack_tool::types::*;
 

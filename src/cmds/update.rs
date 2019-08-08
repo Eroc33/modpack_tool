@@ -235,7 +235,7 @@ fn install_forge(
 
         debug!(log, "saving version json to minecraft install loc");
 
-        let mut version_file = tokio::fs::File::create(mc_path.clone()).await?;
+        let version_file = tokio::fs::File::create(mc_path.clone()).await?;
         //TODO: figure out how to use tokio copy here
         //note zip_reader.by_name() returns a ZipFile and ZipFile: !Send
         std::io::copy(&mut zip_reader.by_name("version.json")?,

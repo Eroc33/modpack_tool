@@ -17,8 +17,6 @@ use crate::{
     cache::{Cache, Cacheable},
 };
 
-use futures::{TryFutureExt,TryStreamExt};
-
 const CACHE_DIR: &str = "./mvn_cache/";
 
 #[derive(Debug)]
@@ -107,7 +105,7 @@ impl MavenCache {
                     .map_err(download::Error::from)
                     .try_fold(String::new(), |mut buf, chunk|{
                                 async move{
-                                    chunk.as_ref().read_to_string(&mut buf);
+                                    chunk.as_ref().read_to_string(&mut buf)?;
                                     Ok(buf)
                                 }
                             }).await?;

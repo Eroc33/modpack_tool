@@ -14,7 +14,6 @@ use nom;
 use futures::{
     prelude::*,
     TryStreamExt,
-    TryFutureExt,
 };
 use kuchiki::{
     ElementData,
