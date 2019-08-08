@@ -336,7 +336,7 @@ impl RedirectFollower {
 impl Future for RedirectFollower {
     type Output = Result<(http::Response<hyper::Body>, Url)>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         let res = if let (Some(current_response), Some(current_location)) = (
             this.current_response.as_mut(),

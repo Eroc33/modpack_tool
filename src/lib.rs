@@ -2,35 +2,28 @@
 
 #[macro_use]
 extern crate serde_derive;
-extern crate failure;
+use failure;
 #[macro_use]
 extern crate serde_json;
 #[macro_use]
 extern crate failure_derive;
-extern crate futures;
-extern crate http;
-extern crate hyper;
-extern crate hyper_tls;
-extern crate semver;
-extern crate sha1;
-extern crate tokio;
-extern crate url;
+use futures;
+use http;
+use hyper;
+
 #[macro_use]
 extern crate slog;
-extern crate time;
-extern crate zip;
+use zip;
 #[macro_use]
 extern crate nom;
-extern crate kuchiki;
-extern crate regex;
+use regex;
 #[macro_use]
 extern crate lazy_static;
-extern crate termcolor;
 //FIXME: has_class in kuchiki should probably not require selectors to be imported
 //       maybe file a bug for this
-extern crate chrono;
-extern crate selectors;
-extern crate indicatif;
+
+
+
 
 use failure::Context;
 

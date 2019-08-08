@@ -1,20 +1,20 @@
 #![feature(plugin, slice_patterns, generators, proc_macro_hygiene, async_await)]
 
-extern crate clap;
-extern crate env_logger;
-extern crate futures;
-extern crate modpack_tool;
-extern crate semver;
-extern crate serde_json;
+use clap;
+use env_logger;
+
+use modpack_tool;
+use semver;
+
 #[macro_use]
 extern crate slog;
-extern crate failure;
-extern crate slog_json;
-extern crate slog_term;
-extern crate slog_stdlog;
-extern crate tokio;
-extern crate zip;
-extern crate sentry;
+
+use slog_json;
+use slog_term;
+use slog_stdlog;
+use tokio;
+
+use sentry;
 
 use failure::*;
 

@@ -10,8 +10,6 @@ use std::io::{Cursor, Read, Write};
 use std::path::PathBuf;
 use semver;
 
-use futures::TryStreamExt;
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum ReleaseStatus {
     Release,

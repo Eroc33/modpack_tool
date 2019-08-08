@@ -1,7 +1,6 @@
 use futures::{
     self,
     prelude::*,
-    TryStreamExt,
 };
 use slog::Logger;
 use std::path::PathBuf;
