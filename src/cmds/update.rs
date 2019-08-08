@@ -1,25 +1,47 @@
-use futures::prelude::*;
+use futures::{
+    self,
+    prelude::*,
+    TryStreamExt,
+};
 use slog::Logger;
 use std::path::PathBuf;
 use serde_json::{self, Value};
-use tokio;
+use tokio::{self,io::AsyncWriteExt};
 use std;
 use zip;
 use failure::*;
 
-use {BoxFuture, Result};
-use download::{DownloadManager, Downloadable};
-use hacks;
-use maven;
-use types::*;
-use cache::Cacheable;
-use util;
+use crate::{
+    BoxFuture,
+    Result,
+    download::{DownloadManager, Downloadable},
+    hacks,
+    maven,
+    types::*,
+    cache::Cacheable,
+    util,
+};
+use indicatif::{MultiProgress,ProgressBar,ProgressStyle};
+use std::sync::Arc;
+
+fn bar_style() -> ProgressStyle{
+    ProgressStyle::default_bar()
+        .template("{prefix:23.bold.dim} {spinner:.green} [{elapsed_precise}] {wide_bar} {pos:>3}/{len:3} {msg:!}")
+}
 
 pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
+    let mprog = Arc::new(MultiProgress::new());
     let download_manager = DownloadManager::new();
 
+    let mprog_runner = mprog.clone();
+
     info!(log, "loading pack config");
-    Box::new(async_block!{
+    Box::pin(async move {
+        let bar = mprog.add(ProgressBar::new(3));
+        bar.set_style(bar_style());
+        let t_handle = std::thread::spawn(move ||{
+            mprog_runner.join().unwrap();
+        });
         let file = std::fs::File::open(path.clone()).context(format!("{:?} is not a file",&path))?;
         let pack = ModpackConfig::load(file).context(format!("{:?} is not a valid modpack config",&path))?;
         let mut pack_path = PathBuf::from(".");
@@ -27,17 +49,22 @@ pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
         pack_path.push(pack.folder());
         let ModpackConfig { name: pack_name, mods, .. } = pack;
 
-        let joint_task: Box<Future<Item=(VersionId,()),Error=::Error>+Send> = Box::new(
-                install_forge(pack_path.clone(),
-                        forge_maven_artifact,
-                        download_manager.clone(),
-                        &log)
-                .join(download_modlist(pack_path.clone(), mods, download_manager.clone(), &log))
-            );
+        let install_fut = install_forge(pack_path.clone(),
+                            forge_maven_artifact,
+                            download_manager.clone(),
+                            &log,
+                            mprog.clone());
 
-        let (id, _) = self::await!(joint_task)?;
-        self::await!(add_launcher_profile(&pack_path, pack_name, id, &log)?)?;
+        let download_mods_fut = download_modlist(pack_path.clone(), mods, download_manager.clone(), &log, mprog.clone());
+
+        let (id, _) = futures::try_join!(
+            install_fut,
+            download_mods_fut
+        )?;
+        //bar.enable_steady_tick(10);
+        add_launcher_profile(&pack_path, pack_name, id, &log, bar)?.await?;
         info!(log,"Done");
+        t_handle.join().unwrap();
         Ok(())
     })
 }
@@ -58,8 +85,9 @@ fn add_launcher_profile(
     pack_name: String,
     version_id: VersionId,
     _log: &Logger,
-) -> Result<impl Future<Item=(),Error=::Error> + Send + 'static> {
-    use serde_json::value::Value;
+    bar: ProgressBar,
+) -> Result<impl Future<Output=Result<()>> + Send + 'static> {
+    bar.set_prefix("Adding launcher profile");
 
     //de UNC prefix path, because apparently java can't handle it
     let pack_path = pack_path.canonicalize()?;
@@ -68,46 +96,58 @@ fn add_launcher_profile(
     let mut mc_path = mc_install_loc();
     mc_path.push("launcher_profiles.json");
 
-    Ok(super::replace(mc_path, |profiles_file| {
-        async_block!{
-            let mut launcher_profiles: Value = serde_json::from_reader(profiles_file)?;
+    bar.set_message("loading profile json");
 
-            {
-                use serde_json::map::Entry;
+    Ok(
+        async move{
+            let profiles_file = tokio::fs::File::open(mc_path.clone()).await?;
+            let out = {
+                bar.inc(1);
+                bar.set_message("loaded profile json");
+                let mut launcher_profiles: Value = serde_json::from_reader(profiles_file.into_std())?;
 
-                let profiles = launcher_profiles
-                    .pointer_mut("/profiles")
-                    .expect("profiles key is missing")
-                    .as_object_mut()
-                    .expect("profiles is not an object");
+                {
+                    use serde_json::map::Entry;
 
-                //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
+                    let profiles = launcher_profiles
+                        .pointer_mut("/profiles")
+                        .expect("profiles key is missing")
+                        .as_object_mut()
+                        .expect("profiles is not an object");
 
-                let always_set = json!({
-                                "name": pack_name,
-                                "gameDir": pack_path,
-                                "lastVersionId": version_id.0
+                    //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
+
+                    let always_set = json!({
+                                    "name": pack_name,
+                                    "gameDir": pack_path,
+                                    "lastVersionId": version_id.0
+                                });
+
+                    match profiles.entry(pack_name.as_str()) {
+                        Entry::Occupied(mut occupied) => {
+                            let profile = occupied.get_mut();
+                            merge(profile, &always_set);
+                        }
+                        Entry::Vacant(empty) => {
+                            // bump the memory higher than the mojang default if this is our initial creation
+                            let mut to_set = json!({
+                                "javaArgs": "-Xms2G -Xmx2G"
                             });
-
-                match profiles.entry(pack_name.as_str()) {
-                    Entry::Occupied(mut occupied) => {
-                        let profile = occupied.get_mut();
-                        merge(profile, &always_set);
-                    }
-                    Entry::Vacant(empty) => {
-                        // bump the memory higher than the mojang default if this is our initial creation
-                        let mut to_set = json!({
-                            "javaArgs": "-Xms2G -Xmx2G"
-                        });
-                        merge(&mut to_set, &always_set);
-                        empty.insert(to_set);
+                            merge(&mut to_set, &always_set);
+                            empty.insert(to_set);
+                        }
                     }
                 }
-            }
-
-            Ok(std::io::Cursor::new(serde_json::to_vec_pretty(&launcher_profiles)?))
+                bar.inc(1);
+                bar.set_message("Saving new profiles json");
+                serde_json::to_vec_pretty(&launcher_profiles)?
+            };
+            let mut out_file = tokio::fs::File::create(mc_path).await?;
+            out_file.write(&out[..]).await?;
+            bar.finish_with_message("done");
+            Ok(())
         }
-    }))
+    )
 }
 
 fn download_modlist(
@@ -115,18 +155,30 @@ fn download_modlist(
     mod_list: ModList,
     manager: DownloadManager,
     log: &Logger,
+    mprog: Arc<MultiProgress>,
 ) -> BoxFuture<()> {
     let log = log.new(o!("stage"=>"download_modlist"));
 
-    Box::new(async_block!{
+    Box::pin(async move{
         pack_path.push("mods");
-        self::await!(tokio::fs::create_dir_all(pack_path.clone()))?;
+        tokio::fs::create_dir_all(pack_path.clone()).await?;
 
-        #[async]
-        for entry in self::await!(tokio::fs::read_dir(pack_path.clone()))? {
-            self::await!(tokio::fs::remove_file(entry.path().clone()))?;
+        let entry_stream = tokio::fs::read_dir(pack_path.clone()).await?;
+        let entries: Vec<_> = entry_stream.try_collect().await?;
+
+        let bar = mprog.add(ProgressBar::new(entries.len() as u64));
+        bar.set_style(bar_style());
+
+        bar.set_prefix("Removing old mod files");
+
+        for entry in entries {
+            bar.inc(1);
+            bar.set_message(format!("Removing: {}",entry.path().to_str().unwrap()).as_str());
+            tokio::fs::remove_file(entry.path().clone()).await?;
         }
-        self::await!(mod_list.download(pack_path, manager, log))?;
+        bar.finish_with_message("Done");
+        //TODO: add progress tracking to download manager downloads
+        mod_list.download(pack_path, manager, log).await?;
         Ok(())
     })
 }
@@ -146,19 +198,19 @@ fn install_forge(
     forge_artifact: maven::ResolvedArtifact,
     manager: DownloadManager,
     log: &Logger,
+    _mprog: Arc<MultiProgress>,
 ) -> BoxFuture<VersionId> {
-    use serde_json::Value;
 
     let log = log.new(o!("stage"=>"install_forge"));
     pack_path.push("forge");
 
-    Box::new(async_block!{
+    Box::pin(async move{
         trace!(log,"Creating pack folder");
-        self::await!(tokio::fs::create_dir_all(pack_path.clone()))?;
+        tokio::fs::create_dir_all(pack_path.clone()).await?;
         trace!(log,"Created pack folder");
 
         let forge_maven_artifact_path = forge_artifact.to_path();
-        let reader = self::await!(forge_artifact.clone().reader(manager.clone(), log.clone()))?;
+        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await?;
 
         debug!(log, "Opening forge jar");
         let mut zip_reader = zip::ZipArchive::new(reader)?;
@@ -177,17 +229,17 @@ fn install_forge(
         mc_path.push("versions");
         mc_path.push(version_id.as_str());
         debug!(log, "creating profile folder");
-        self::await!(tokio::fs::create_dir_all(mc_path.clone()))?;
+        tokio::fs::create_dir_all(mc_path.clone()).await?;
 
         mc_path.push(format!("{}.json", version_id.as_str()));
 
         debug!(log, "saving version json to minecraft install loc");
 
-        let mut version_file = self::await!(tokio::fs::File::create(mc_path.clone()))?;
+        let mut version_file = tokio::fs::File::create(mc_path.clone()).await?;
         //TODO: figure out how to use tokio copy here
         //note zip_reader.by_name() returns a ZipFile and ZipFile: !Send
         std::io::copy(&mut zip_reader.by_name("version.json")?,
-                        &mut version_file)?;
+                        &mut version_file.into_std())?;
 
         debug!(log, "Applying version json hacks");
         hacks::hack_forge_version_json(mc_path)?;
@@ -197,7 +249,7 @@ fn install_forge(
         mc_path.push(forge_maven_artifact_path);
         mc_path.pop(); //pop the filename
 
-        self::await!(forge_artifact.install_at_no_classifier(mc_path, manager, log))?;
+        forge_artifact.install_at_no_classifier(mc_path, manager, log).await?;
         Ok(VersionId(version_id))
     })
 }

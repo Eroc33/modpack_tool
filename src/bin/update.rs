@@ -1,8 +1,8 @@
-#![feature(custom_derive, plugin, slice_patterns, generators, proc_macro_hygiene)]
+#![feature(plugin, slice_patterns, generators, proc_macro_hygiene, async_await)]
 
 extern crate clap;
 extern crate env_logger;
-extern crate futures_await as futures;
+extern crate futures;
 extern crate modpack_tool;
 extern crate semver;
 extern crate serde_json;
@@ -67,7 +67,8 @@ fn build_cli() -> clap::App<'static, 'static> {
         ])
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let _sentry = sentry::init("https://0b0da309fa014d60b7b5e6a9da40529e@sentry.io/1207316");
     sentry::integrations::panic::register_panic_handler();
     let mut builder = env_logger::Builder::from_default_env();
@@ -92,13 +93,13 @@ fn main() -> Result<()> {
     let root = Logger::root(
         Arc::new(Mutex::new(
             slog::Duplicate::new(slog_stdlog::StdLog.filter_level(slog::Level::Warning),
-                slog::Duplicate::new(slog_term::term_compact(), log_file_stream)).fuse(),
+                slog::Duplicate::new(slog_term::term_compact().filter_level(slog::Level::Warning), log_file_stream)).fuse(),
         )).ignore_res(),
         o!(),
     );
     let log = root.new(o!());
 
-    let run: Option<Box<Future<Item = (), Error = modpack_tool::Error> + Send>> =
+    let run: Option<modpack_tool::BoxFuture<()>> =
         match matches.subcommand() {
             ("update", Some(args)) => {
                 let pack_path: PathBuf = args.value_of("pack_file").expect("pack_file is required!").into();
@@ -110,7 +111,7 @@ fn main() -> Result<()> {
                     eprintln!("No file exists at the path {:?}",pack_path);
                     None
                 }else{
-                    Some(Box::new(modpack_tool::cmds::update(
+                    Some(Box::pin(modpack_tool::cmds::update(
                         pack_path,
                         log.clone(),
                     )))
@@ -155,7 +156,7 @@ fn main() -> Result<()> {
                                 "Second argument ({}) was not a semver version requirement",
                                 ver
                             ))?;
-                            Some(Box::new(modpack_tool::cmds::upgrade::new_version(
+                            Some(Box::pin(modpack_tool::cmds::upgrade::new_version(
                                 ver,
                                 pack_path.to_owned(),
                                 pack,
@@ -167,7 +168,7 @@ fn main() -> Result<()> {
                                     "Pack {} has no auto_update_release_status",
                                     pack_path
                                 ))?;
-                            Some(Box::new(modpack_tool::cmds::upgrade::same_version(
+                            Some(Box::pin(modpack_tool::cmds::upgrade::same_version(
                                 pack_path.to_owned(),
                                 pack,
                                 release_status,
@@ -177,7 +178,7 @@ fn main() -> Result<()> {
                     "add" => {
                         let mod_url = args.value_of("mod_url").expect("mod_url is required!");
 
-                        Some(Box::new(modpack_tool::cmds::add(pack_path.to_owned(), mod_url.to_owned())))
+                        Some(Box::pin(modpack_tool::cmds::add(pack_path.to_owned(), mod_url.to_owned())))
                     }
                     _ => {
                         build_cli()
@@ -200,16 +201,11 @@ fn main() -> Result<()> {
         None => return Ok(()),
     };
 
-    let (tx, rx) = std::sync::mpsc::channel::<Result<()>>();
-    tokio::run(
-        run.then(move |res|{
-            if let Err(ref e) = res{
-                println!("Reporting error to sentry");
-                sentry::integrations::failure::capture_fail(e);
-            }
-            tx.send(res).expect("Send failure while sending error");
-            Ok(())
-        })
-    );
-    rx.recv().expect("Recv failure while getting error")
+    let res = run.await;
+
+    if let Err(ref e) = res{
+        println!("Reporting error to sentry");
+        sentry::integrations::failure::capture_fail(e);
+    }
+    Ok(())
 }

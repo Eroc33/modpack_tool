@@ -1,4 +1,4 @@
-#![feature(custom_derive, slice_patterns, never_type, generators, proc_macro_hygiene)]
+#![feature(slice_patterns, never_type, generators, proc_macro_hygiene, async_await)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -7,14 +7,13 @@ extern crate failure;
 extern crate serde_json;
 #[macro_use]
 extern crate failure_derive;
-extern crate futures_await as futures;
+extern crate futures;
 extern crate http;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate semver;
 extern crate sha1;
 extern crate tokio;
-extern crate tokio_threadpool;
 extern crate url;
 #[macro_use]
 extern crate slog;
@@ -31,6 +30,7 @@ extern crate termcolor;
 //       maybe file a bug for this
 extern crate chrono;
 extern crate selectors;
+extern crate indicatif;
 
 use failure::Context;
 
@@ -75,7 +75,7 @@ pub enum Error {
     AutoUpdateDisabled,
 }
 
-pub type Result<T> = ::std::result::Result<T, ::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 impl From<!> for Error {
     fn from(never: !) -> Self {
@@ -125,4 +125,4 @@ impl From<Context<String>> for Error {
     }
 }
 
-pub type BoxFuture<I> = Box<futures::Future<Item = I, Error = Error> + Send + 'static>;
+pub type BoxFuture<I> = futures::future::BoxFuture<'static, Result<I>>;

@@ -1,18 +1,23 @@
 //#![allow(redundant_closure)]
-use download::{self, DownloadManager};
+use crate::download::{self, DownloadManager};
 use futures::future;
 use futures::prelude::*;
-use hash_writer::HashWriter;
+use crate::hash_writer::HashWriter;
 use http::Uri;
 use slog::Logger;
-use std::fs::{self, File};
-use std::io::Cursor;
-use std::io::prelude::*;
-use std::iter::FromIterator;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use util;
-use cache::{Cache, Cacheable};
+use std::{
+    fs::{self, File},
+    io::prelude::*,
+    iter::FromIterator,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
+use crate::{
+    util,
+    cache::{Cache, Cacheable},
+};
+
+use futures::{TryFutureExt,TryStreamExt};
 
 const CACHE_DIR: &str = "./mvn_cache/";
 
@@ -41,14 +46,14 @@ pub struct ResolvedArtifact {
 pub struct MavenCache;
 
 impl Cacheable for ResolvedArtifact {
-    type Cache = ::cache::FileCache;
+    type Cache = crate::cache::FileCache;
     fn cached_path(&self) -> PathBuf {
         let mut p = PathBuf::new();
         p.push(CACHE_DIR);
         p.push(&self.artifact.to_path());
         p
     }
-    fn uri(&self) -> ::download::Result<Uri> {
+    fn uri(&self) -> crate::download::Result<Uri> {
         self.artifact.get_uri_on(&self.repo)
     }
 }
@@ -66,16 +71,16 @@ impl Cache<ResolvedArtifact> for MavenCache {
         info!(log, "caching maven artifact");
         if Self::is_cached(&artifact) {
             info!(log, "artifact was already cached");
-            Box::new(future::ok(cached_path))
+            Box::pin(future::ok(cached_path))
         } else {
             info!(log, "artifact is not cached, downloading now");
             match artifact.uri() {
-                Ok(url) => Box::new(
+                Ok(url) => Box::pin(
                     manager
                         .download(url, cached_path.clone(), false, &log)
-                        .map(move |_| cached_path),
+                        .map_ok(move |_| cached_path),
                 ),
-                Err(e) => Box::new(future::err(e)),
+                Err(e) => Box::pin(future::err(e)),
             }
         }
     }
@@ -89,7 +94,7 @@ impl MavenCache {
         if Self::is_cached(&resolved) {
             let cached_path = resolved.cached_path();
             let sha_url_res = resolved.sha_uri();
-            Box::new(async_block!{
+            Box::pin(async move{
                 let mut cached_file = File::open(cached_path)?;
 
                 let mut sha = HashWriter::new();
@@ -97,14 +102,15 @@ impl MavenCache {
                 let cached_sha = sha.digest();
 
                 let sha_uri = sha_url_res?;
-                let (res,_) = self::await!(manager.get(sha_uri)?)?;
-                let hash_str = self::await!(res.into_body()
+                let (res,_) = manager.get(sha_uri)?.await?;
+                let hash_str = res.into_body()
                     .map_err(download::Error::from)
-                    .fold(String::new(),
-                            |mut buf, chunk| -> Result<String, download::Error> {
-                                Cursor::new(chunk).read_to_string(&mut buf)?;
-                                Ok(buf)
-                            }))?;
+                    .try_fold(String::new(), |mut buf, chunk|{
+                                async move{
+                                    chunk.as_ref().read_to_string(&mut buf);
+                                    Ok(buf)
+                                }
+                            }).await?;
                 if hash_str == format!("{}", cached_sha) {
                     Ok(VerifyResult::Good)
                 } else {
@@ -112,7 +118,7 @@ impl MavenCache {
                 }
             })
         } else {
-            Box::new(future::ok(VerifyResult::NotInCache)) as download::BoxFuture<VerifyResult>
+            Box::pin(future::ok(VerifyResult::NotInCache)) as download::BoxFuture<VerifyResult>
         }
     }
 }
@@ -127,11 +133,11 @@ impl MavenArtifact {
         p
     }
 
-    pub fn get_uri_on(&self, base: &Uri) -> ::download::Result<Uri> {
-        let base = ::util::uri_to_url(base)?;
+    pub fn get_uri_on(&self, base: &Uri) -> crate::download::Result<Uri> {
+        let base = crate::util::uri_to_url(base)?;
         let path = self.to_path();
         let url = base.join(path.to_str().expect("non unicode path encountered"))?;
-        ::util::url_to_uri(&url)
+        crate::util::url_to_uri(&url)
     }
 
     fn group_path(&self) -> PathBuf {
@@ -169,7 +175,7 @@ impl MavenArtifact {
         repo_uri: Uri,
         manager: DownloadManager,
         log: Logger,
-    ) -> impl Future<Item = (), Error = ::download::Error> + Send {
+    ) -> impl Future<Output=Result<(), crate::download::Error>> + Send {
         MavenCache::install_at(self.resolve(repo_uri), location.to_owned(), manager, log)
     }
 }
@@ -178,47 +184,49 @@ impl ResolvedArtifact {
     pub fn to_path(&self) -> PathBuf {
         self.artifact.to_path()
     }
-    pub fn sha_uri(&self) -> ::download::Result<Uri> {
-        let mut url = ::util::uri_to_url(&self.uri()?)?;
+    pub fn sha_uri(&self) -> crate::download::Result<Uri> {
+        let mut url = crate::util::uri_to_url(&self.uri()?)?;
         let mut path = url.path().to_owned();
         path.push_str(".sha1");
         url.set_path(path.as_ref());
-        ::util::url_to_uri(&url)
+        crate::util::url_to_uri(&url)
     }
     pub fn install_at_no_classifier(
         self,
         mut location: PathBuf,
         manager: DownloadManager,
         log: Logger,
-    ) -> impl Future<Item = (), Error = ::download::Error> + Send {
+    ) -> impl Future<Output=crate::download::Result<()>> + Send {
         <Self as Cacheable>::Cache::with(self.clone(), manager, log.clone()).and_then(
             move |cached_path| {
-                let ResolvedArtifact { artifact, repo } = self;
-                let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
-                info!(log, "installing maven artifact");
+                async move{
+                    let ResolvedArtifact { artifact, repo } = self;
+                    let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
+                    info!(log, "installing maven artifact");
 
-                let cached_path_no_classifier = ResolvedArtifact {
-                    artifact: MavenArtifact {
-                        classifier: None,
-                        ..artifact.clone()
-                    },
-                    repo,
-                }.cached_path();
+                    let cached_path_no_classifier = ResolvedArtifact {
+                        artifact: MavenArtifact {
+                            classifier: None,
+                            ..artifact.clone()
+                        },
+                        repo,
+                    }.cached_path();
 
-                fs::create_dir_all(location.to_owned())?;
+                    fs::create_dir_all(location.to_owned())?;
 
-                if let Some(name) = cached_path_no_classifier.file_name() {
-                    location.push(name);
-                }
-                match util::symlink(cached_path, location, &log) {
-                    Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
-                    Err(util::SymlinkError::AlreadyExists) => {
-                        //TODO: verify the file, and replace/redownload it if needed
-                        warn!(log, "File already exist, assuming content is correct");
+                    if let Some(name) = cached_path_no_classifier.file_name() {
+                        location.push(name);
                     }
-                    Ok(_) => {}
+                    match util::symlink(cached_path, location, &log) {
+                        Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
+                        Err(util::SymlinkError::AlreadyExists) => {
+                            //TODO: verify the file, and replace/redownload it if needed
+                            warn!(log, "File already exist, assuming content is correct");
+                        }
+                        Ok(_) => {}
+                    }
+                    Ok(())
                 }
-                Ok(())
             },
         )
     }

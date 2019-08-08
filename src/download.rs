@@ -1,17 +1,29 @@
-use futures::future;
-use futures::prelude::*;
-use hyper;
-use http::{self, Request};
-use hyper::Uri;
-use hyper::client::HttpConnector;
-use http::header::{self, HeaderMap, HeaderValue};
+use futures::{
+    future,
+    Future,
+    TryFutureExt,
+};
+use hyper::{
+    self,
+    Uri,
+    client::HttpConnector,
+};
+use http::{
+    self,
+    Request,
+    header::{self, HeaderMap, HeaderValue},
+};
 use hyper_tls::HttpsConnector;
 use slog::Logger;
-use std::fs;
-use std::path::PathBuf;
 use time;
 use url::{self, Url};
-use util;
+use crate::util;
+use std::{
+    fs,
+    path::PathBuf,
+    task::{Poll,Context},
+    pin::Pin,
+};
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -55,15 +67,15 @@ impl From<hyper::Error> for Error {
     }
 }
 
-impl From<::std::io::Error> for Error {
-    fn from(err: ::std::io::Error) -> Self {
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
         Error::Io(err)
     }
 }
 
-pub type Result<T> = ::std::result::Result<T, ::download::Error>;
+pub type Result<T> = std::result::Result<T, crate::download::Error>;
 
-pub type BoxFuture<I> = Box<Future<Item = I, Error = ::download::Error> + Send>;
+pub type BoxFuture<I> = futures::future::BoxFuture<'static,Result<I>>;
 
 pub trait Downloadable: Sync {
     fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()>;
@@ -71,19 +83,19 @@ pub trait Downloadable: Sync {
 
 impl<D: Downloadable + Send + 'static> Downloadable for Vec<D> {
     fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
-        Box::new(
-            future::join_all(
+        Box::pin(
+            future::try_join_all(
                 self.into_iter()
                     .map(move |d| d.download(location.clone(), manager.clone(), log.clone())),
-            ).map(|_| ()),
+            ).map_ok(|_| ()),
         )
     }
 }
 
 impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
     fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
-        Box::new(
-            future::collect(
+        Box::pin(
+            future::try_join_all(
                 self.into_iter()
                     .map(move |d| {
                         d.clone()
@@ -91,7 +103,7 @@ impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
                     })
                     .collect::<Vec<BoxFuture<()>>>()
                     .into_iter(),
-            ).map(|_| ()),
+            ).map_ok(|_| ()),
         )
     }
 }
@@ -99,9 +111,9 @@ impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
 impl Downloadable for Url {
     fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
         let url = self.clone();
-        Box::new(async_block!{
+        Box::pin(async move{
             let uri = util::url_to_uri(&url)?;
-            self::await!(uri.download(location, manager, log))?;
+            uri.download(location, manager, log).await?;
             Ok(())
         })
     }
@@ -109,7 +121,7 @@ impl Downloadable for Url {
 
 impl Downloadable for Uri {
     fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
-        Box::new(manager.download(self, location, false, &log))
+        Box::pin(manager.download(self, location, false, &log))
     }
 }
 
@@ -249,7 +261,7 @@ impl DownloadManager {
         let mut request = self.request_with_base_headers(http::Method::GET, uri);
         let http_client = self.http_client.clone();
 
-        let res = async_block!{
+        let res = async move{
             trace!(log,"Creating dir {}",folder_path.to_string_lossy());
             fs::create_dir_all(folder_path)?;
 
@@ -263,7 +275,7 @@ impl DownloadManager {
             }
 
             trace!(log,"Doing the request now");
-            let (res,url) = self::await!(http_client.request_following_redirects(request)?)?;
+            let (res,url) = http_client.request_following_redirects(request)?.await?;
             trace!(log,"Request done");
 
             if res.status() == http::StatusCode::NOT_MODIFIED {
@@ -275,12 +287,12 @@ impl DownloadManager {
                     path.push(get_url_filename(&url));
                 }
                 trace!(log,"Saving the file to {}",path.as_path().to_string_lossy());
-                self::await!(util::save_stream_to_file(res.into_body(), path))?;
+                util::save_stream_to_file(res.into_body(), path).await?;
                 Ok(())
             }
         };
 
-        Box::new(res)
+        Box::pin(res)
     }
 }
 
@@ -294,7 +306,7 @@ fn get_url_filename(url: &Url) -> String {
 }
 
 pub struct RedirectFollower {
-    current_response: Option<hyper::client::ResponseFuture>,
+    current_response: Option<Pin<Box<hyper::client::ResponseFuture>>>,
     current_location: Option<Url>,
     client: HttpSimple,
     method: http::Method,
@@ -306,12 +318,12 @@ pub struct RedirectFollower {
 ///#WARNING: this *only* works for bodyless requests
 impl RedirectFollower {
     pub fn new(client: HttpSimple, request: Request<hyper::Body>) -> Result<Self> {
-        let url = ::util::uri_to_url(request.uri())?;
+        let url = crate::util::uri_to_url(request.uri())?;
         let method = request.method().clone();
         let headers = request.headers().clone();
         let version = request.version();
         Ok(RedirectFollower {
-            current_response: Some(client.request(request)),
+            current_response: Some(Box::pin(client.request(request))),
             current_location: Some(url),
             client,
             method,
@@ -322,16 +334,16 @@ impl RedirectFollower {
 }
 
 impl Future for RedirectFollower {
-    type Item = (http::Response<hyper::Body>, Url);
-    type Error = Error;
+    type Output = Result<(http::Response<hyper::Body>, Url)>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let this = self.get_mut();
         let res = if let (Some(current_response), Some(current_location)) = (
-            self.current_response.as_mut(),
-            self.current_location.as_mut(),
+            this.current_response.as_mut(),
+            this.current_location.as_mut(),
         ) {
             loop {
-                if let Async::Ready(res) = current_response.poll()? {
+                if let Poll::Ready(res) = std::future::Future::poll(current_response.as_mut(),cx)? {
                     match res.status() {
                         http::StatusCode::FOUND
                         | http::StatusCode::MOVED_PERMANENTLY
@@ -342,25 +354,25 @@ impl Future for RedirectFollower {
                                 .ok_or_else(|| Error::MalformedRedirect)?;
                             let next_url = current_location.join(&*next.to_str()
                                 .expect("Location header should only ever be ascii"))?;
-                            let next = ::util::url_to_uri(&next_url)?;
+                            let next = crate::util::url_to_uri(&next_url)?;
                             let mut req = Request::builder()
-                                .method(self.method.clone())
+                                .method(this.method.clone())
                                 .uri(next.clone())
-                                .version(self.version)
+                                .version(this.version)
                                 .body(hyper::Body::empty())
                                 .expect("error building request");
-                            *req.headers_mut() = self.headers.clone();
-                            *current_response = self.client.request(req);
+                            *req.headers_mut() = this.headers.clone();
+                            *current_response = Box::pin(this.client.request(req));
                             *current_location = next_url;
                         }
                         status if status.is_client_error() => {
-                            break Err(Error::HttpClientError);
+                            break Poll::Ready(Err(Error::HttpClientError));
                         }
                         status if status.is_server_error() => {
-                            break Err(Error::HttpServerError);
+                            break Poll::Ready(Err(Error::HttpServerError));
                         }
                         hyper::StatusCode::OK => {
-                            break Ok(Async::Ready((res, current_location.clone())));
+                            break Poll::Ready(Ok((res, current_location.clone())));
                         }
                         other => panic!(
                             "Not sure what to do with the statuscode: {:?}. This is a bug.",
@@ -368,17 +380,17 @@ impl Future for RedirectFollower {
                         ),
                     }
                 } else {
-                    break Ok(Async::NotReady);
+                    break Poll::Pending;
                 }
             }
         } else {
             panic!("RedirectFollower polled after return. This is a bug.")
         };
         match res {
-            Ok(Async::NotReady) => {}
+            Poll::Pending => {}
             _ => {
-                self.current_response = None;
-                self.current_location = None;
+                this.current_response = None;
+                this.current_location = None;
             }
         }
         res

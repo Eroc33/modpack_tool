@@ -1,11 +1,11 @@
 use http::{self, Uri};
 use std::path::PathBuf;
 use std::str::FromStr;
-use download;
+use crate::download;
 
 const CACHE_DIR: &str = "./curse_cache/";
 
-pub fn parse_modid_from_url(url: &str) -> Result<String,::Error>{
+pub fn parse_modid_from_url(url: &str) -> Result<String,crate::Error>{
     complete!(
         url,
         do_parse!(
@@ -14,7 +14,7 @@ pub fn parse_modid_from_url(url: &str) -> Result<String,::Error>{
             (id.to_owned())
         )
     ).to_full_result()
-    .map_err(|_| ::Error::BadModUrl {
+    .map_err(|_| crate::Error::BadModUrl {
         url: url.to_owned(),
     })
 }
@@ -25,7 +25,7 @@ pub struct Mod {
     pub version: u64,
 }
 
-pub type Cache = ::cache::FolderCache;
+pub type Cache = crate::cache::FolderCache;
 
 impl Mod {
     pub fn project_uri(&self) -> Result<Uri, http::uri::InvalidUri> {
@@ -33,7 +33,7 @@ impl Mod {
         Ok(Uri::from_str(&loc)?)
     }
 
-    pub fn from_url(url: &str) -> ::Result<Self>{
+    pub fn from_url(url: &str) -> crate::Result<Self>{
         complete!(
             &url,
             do_parse!(
@@ -47,14 +47,14 @@ impl Mod {
                 })
             )
         ).to_full_result()
-        .map_err(|_| ::Error::BadModUrl {
+        .map_err(|_| crate::Error::BadModUrl {
             url: url.to_owned(),
         })
     }
 }
 
-impl ::cache::Cacheable for Mod {
-    type Cache = ::cache::FolderCache;
+impl crate::cache::Cacheable for Mod {
+    type Cache = crate::cache::FolderCache;
     fn cached_path(&self) -> PathBuf {
         let mut p = PathBuf::new();
         p.push(CACHE_DIR);
@@ -72,8 +72,8 @@ impl ::cache::Cacheable for Mod {
         Ok(Uri::from_str(&loc)?)
     }
 }
-impl Into<::types::ModSource> for Mod {
-    fn into(self) -> ::types::ModSource {
-        ::types::ModSource::CurseforgeMod(self)
+impl Into<crate::types::ModSource> for Mod {
+    fn into(self) -> crate::types::ModSource {
+        crate::types::ModSource::CurseforgeMod(self)
     }
 }

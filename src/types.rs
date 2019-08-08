@@ -1,14 +1,16 @@
-use cache::Cache;
-use curseforge;
-use download::{self, DownloadManager, Downloadable};
-use forge_version;
+use crate::cache::Cache;
+use crate::curseforge;
+use crate::download::{self, DownloadManager, Downloadable};
+use crate::forge_version;
 use futures::prelude::*;
 use http::{self, Uri};
-use maven::{MavenArtifact, ResolvedArtifact};
+use crate::maven::{MavenArtifact, ResolvedArtifact};
 use slog::Logger;
 use std::io::{Cursor, Read, Write};
 use std::path::PathBuf;
 use semver;
+
+use futures::TryStreamExt;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum ReleaseStatus {
@@ -93,9 +95,9 @@ impl Downloadable for ModSource {
             ModSource::CurseforgeMod(modd) => {
                 curseforge::Cache::install_at(modd, location, manager, log)
             }
-            ModSource::MavenMod { repo, artifact } => Box::new(async_block!{
+            ModSource::MavenMod { repo, artifact } => Box::pin(async move{
                 let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
-                self::await!(artifact.download_from(location.as_ref(), repo, manager, log))?;
+                artifact.download_from(location.as_ref(), repo, manager, log).await?;
                 Ok(())
             }),
         }
@@ -187,39 +189,40 @@ impl MCLibraryListing {
 const MC_LIBS_MAVEN: &str = "https://libraries.minecraft.net/";
 
 impl Downloadable for MCLibraryListing {
-    #[async(boxed_send)]
     fn download(
         self,
         mut location: PathBuf,
         manager: DownloadManager,
         log: Logger,
-    ) -> download::Result<()> {
-        let resolved_artifact = if self.is_native() {
-            let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
-            let disallowed = if let Some(ref rules) = self.rules {
-                rules
-                    .into_iter()
-                    .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
+    ) -> download::BoxFuture<()> {
+        Box::pin(async move{
+            let resolved_artifact = if self.is_native() {
+                let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
+                let disallowed = if let Some(ref rules) = self.rules {
+                    rules
+                        .into_iter()
+                        .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
+                } else {
+                    false
+                };
+                if disallowed {
+                    None //nothing to download
+                } else {
+                    artifact.classifier = self.platform_native_classifier();
+                    let base = Uri::from_str(MC_LIBS_MAVEN)?;
+                    Some(artifact.resolve(base))
+                }
             } else {
-                false
-            };
-            if disallowed {
-                None //nothing to download
-            } else {
-                artifact.classifier = self.platform_native_classifier();
+                let artifact = self.name.parse::<MavenArtifact>().unwrap();
                 let base = Uri::from_str(MC_LIBS_MAVEN)?;
                 Some(artifact.resolve(base))
+            };
+            if let Some(resolved_artifact) = resolved_artifact {
+                location.push(resolved_artifact.to_path());
+                resolved_artifact.download(location, manager, log).await?;
             }
-        } else {
-            let artifact = self.name.parse::<MavenArtifact>().unwrap();
-            let base = Uri::from_str(MC_LIBS_MAVEN)?;
-            Some(artifact.resolve(base))
-        };
-        if let Some(resolved_artifact) = resolved_artifact {
-            location.push(resolved_artifact.to_path());
-            self::await!(resolved_artifact.download(location, manager, log))?;
-        }
-        Ok(())
+            Ok(())
+        })
     }
 }
 
@@ -249,7 +252,7 @@ use std::string::String;
 pub type ModList = Vec<ModSource>;
 
 impl MCVersionInfo {
-    pub fn version(ver: &str) -> ::BoxFuture<MCVersionInfo> {
+    pub fn version(ver: &str) -> crate::BoxFuture<MCVersionInfo> {
         let client = hyper::Client::new();
         let uri = Uri::from_str(
             format!(
@@ -258,24 +261,12 @@ impl MCVersionInfo {
                 ver
             ).as_str(),
         ).unwrap();
-        Box::new(
-            client
-                .get(uri)
-                .map_err(::Error::from)
-                .and_then(|res| {
-                    res.into_body().map_err(::Error::from).fold(
-                        vec![],
-                        |mut buf, chunk| -> Result<Vec<u8>, ::Error> {
-                            Cursor::new(chunk).read_to_end(&mut buf)?;
-                            Ok(buf)
-                        },
-                    )
-                })
-                .and_then(|buf| {
-                    let info: MCVersionInfo = serde_json::de::from_reader(Cursor::new(buf))?;
-                    Ok(info)
-                }),
-        ) as ::BoxFuture<MCVersionInfo>
+        Box::pin(async move{
+            let res = client.get(uri).map_err(crate::Error::from).await?;
+            let buf = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
+            let info: MCVersionInfo = serde_json::de::from_reader(Cursor::new(buf))?;
+            Ok(info)
+        }) as crate::BoxFuture<MCVersionInfo>
     }
 }
 
@@ -332,20 +323,20 @@ impl ModpackConfig {
 
         self.mods.push(modsource);
     }
-    pub fn add_mod_by_url(&mut self, mod_url: &str) -> ::Result<()> {
+    pub fn add_mod_by_url(&mut self, mod_url: &str) -> crate::Result<()> {
         let modsource: ModSource = curseforge::Mod::from_url(mod_url)?.into();
         self.replace_mod(modsource);
         Ok(())
     }
 
-    pub fn load<R>(reader: R) -> ::Result<Self>
+    pub fn load<R>(reader: R) -> crate::Result<Self>
     where
         R: Read,
     {
         Ok(serde_json::de::from_reader(reader)?)
     }
 
-    pub fn save<W>(&self, writer: &mut W) -> ::Result<()>
+    pub fn save<W>(&self, writer: &mut W) -> crate::Result<()>
     where
         W: Write,
     {

@@ -6,22 +6,22 @@ pub use self::add::*;
 
 use futures::prelude::*;
 use tokio;
-use tokio::prelude::*;
 use std::path::PathBuf;
 
-pub(crate) fn replace<P, R, FUT, F>(path: P, f: F) -> impl Future<Item=(),Error=::Error> + Send + 'static
+pub(crate) fn replace<P, R, FUT, F>(path: P, f: F) -> impl Future<Output=crate::Result<()>> + Send + 'static
 where
     P: Into<PathBuf> + 'static,
-    R: AsyncRead + Send,
-    FUT: Future<Item = R, Error = ::Error> + Send,
+    R: std::io::Read + Send,
+    FUT: Future<Output=crate::Result<R>> + Send,
     F: FnOnce(tokio::fs::File) -> FUT + Send + 'static,
 {
     let path = path.into();
-    async_block!{
-        let file = self::await!(tokio::fs::File::open(path.clone()))?;
-        let out = self::await!(f(file))?;
-        let out_file = self::await!(tokio::fs::File::create(path))?;
-        self::await!(tokio::io::copy(out,out_file))?;
+    async move{
+        let file = tokio::fs::File::open(path.clone()).await?;
+        let mut out = f(file).await?;
+        let out_file = tokio::fs::File::create(path).await?;
+        //TODO: use async copy when possible
+        std::io::copy(&mut out, &mut out_file.into_std())?;
         Ok(())
     }
 }

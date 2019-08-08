@@ -2,6 +2,7 @@
 authors = ["Euan Rochester <euan@rochester.me.uk>"]
 name = "modpack_tool"
 version = "0.1.0"
+edition = "2018"
 
 [dependencies]
 chrono = "0.4.2"
@@ -9,16 +10,17 @@ clap = "2.24"
 env_logger = "0.5"
 failure = "0.1.1"
 failure_derive = "0.1.1"
-futures-await = "0.1.1"
+futures-preview = {version="0.3.0-alpha.17",features=["nightly","async-await"]}
 html5ever = "0.22.0"
 http = "0.1.5"
-hyper = "0.12.16"
-hyper-tls = "0.3.1"
-kuchiki = "0.7"
+hyper = {git="https://github.com/hyperium/hyper.git"}
+hyper-tls = {git="https://github.com/hyperium/hyper-tls.git"}
+indicatif = "0.10.2"
+kuchiki = "0.7.3"
 lazy_static = "1.0"
 log = "*"
-regex = "0.2.2"
-selectors = "0.20.0"
+regex = "1.1.9"
+selectors = "0.21.0"
 sentry = "0.12.0"
 serde = "1.0"
 serde_derive = "1.0"
@@ -29,9 +31,8 @@ slog-stdlog = "3"
 slog-term = "2"
 termcolor = "0.3.3"
 time = "*"
-tokio = "0.1"
-tokio-io = "0.1.6"
-tokio-threadpool = "0.1.3"
+tokio = {git="https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9"}
+tokio-io = {git="https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9"}
 url = "1.4"
 zip = "0.2"
 
@@ -46,3 +47,14 @@ version = "0.8.0"
 [dependencies.slog]
 features = ["max_level_trace"]
 version = "2"
+
+[patch."https://github.com/tokio-rs/tokio"]
+tokio = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-executor = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-io = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-reactor = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-sync = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-tcp = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-timer = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-threadpool = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }
+tokio-tls = { git = "https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9" }

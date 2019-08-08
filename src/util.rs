@@ -1,24 +1,30 @@
-use download;
+use crate::download;
 use futures::prelude::*;
 
 use hyper;
 use http::Uri;
 use slog::Logger;
 use std;
-use std::io::{self, Cursor};
+use std::io::{self};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use chrono::DateTime;
 use chrono::offset::Utc;
-use tokio;
-use tokio::prelude::AsyncRead;
+use tokio::{
+    self,
+    prelude::AsyncRead,
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
+};
 
 use url::Url;
 
 //TODO: make this an extension method?
 pub fn remove_unc_prefix<P: AsRef<Path>>(path: P) -> PathBuf {
     let path = path.as_ref().to_str().unwrap();
-    let path = path.trim_left_matches(r#"\\?\"#); //actually remove UNC prefix
+    let path = path.trim_start_matches(r#"\\?\"#); //actually remove UNC prefix
     path.into()
 }
 
@@ -39,50 +45,40 @@ mod tests {
     }
 }
 
-pub fn uri_to_url(uri: &Uri) -> ::download::Result<Url> {
+pub fn uri_to_url(uri: &Uri) -> crate::download::Result<Url> {
     Ok(Url::from_str(format!("{}", uri).as_str())?)
 }
 
-pub fn url_to_uri(url: &Url) -> ::download::Result<Uri> {
+pub fn url_to_uri(url: &Url) -> crate::download::Result<Uri> {
     Ok(Uri::from_str(url.as_ref())?)
 }
 
-pub fn save_stream_to_file<S>(
-    stream: S,
+pub async fn save_stream_to_file<S,E>(
+    mut stream: S,
     path: PathBuf,
-) -> impl Future<Item = (), Error = download::Error> + Send
+) -> download::Result<()>
 where
-    S: Stream<Item = hyper::Chunk> + Send,
-    S::Error: Into<download::Error>,
+    S: Stream<Item = Result<hyper::Chunk,E>> + Unpin + Send,
+    download::Error: From<E>,
 {
-    tokio::fs::File::create(path)
-        .map_err(download::Error::from)
-        .and_then(move |file| {
-            stream
-                .map_err(Into::into)
-                .fold(file, |file, chunk| {
-                    tokio::io::copy(Cursor::new(chunk), file)
-                        .map_err(download::Error::from)
-                        .map(|(_n, _r, w)| w)
-                })
-                .map(|_| ())
-        })
+    let mut file = tokio::fs::File::create(path).await?;
+
+    while let Some(chunk) = stream.try_next().await?{
+        file.write_all(chunk.as_ref()).await?;
+    }
+    Ok(())
 }
 
-pub fn save_file<R>(
-    reader: R,
+pub async fn save_file<R>(
+    mut reader: R,
     path: PathBuf,
-) -> impl Future<Item = u64, Error = download::Error> + Send
+) -> download::Result<u64>
 where
-    R: AsyncRead + Send,
+    R: AsyncRead + Send + Unpin,
 {
-    tokio::fs::File::create(path)
-        .map_err(download::Error::from)
-        .and_then(move |file| {
-            tokio::io::copy(reader, file)
-                .map_err(download::Error::from)
-                .map(|(n, _r, _w)| n)
-        })
+    let mut file = tokio::fs::File::create(path).await?;
+
+    Ok(reader.copy(&mut file).await?)
 }
 
 pub fn file_timestamp<P: AsRef<Path>>(path: P) -> download::Result<DateTime<Utc>> {
@@ -104,9 +100,9 @@ impl From<std::io::Error> for SymlinkError {
     }
 }
 
-use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-static SYMLINKS_BLOCKED: AtomicBool = ATOMIC_BOOL_INIT;
+static SYMLINKS_BLOCKED: AtomicBool = AtomicBool::new(false);
 
 use std::fmt::Debug;
 pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(

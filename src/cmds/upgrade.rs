@@ -11,21 +11,29 @@ use selectors::attr::CaseSensitivity;
 use std;
 use nom;
 
-use futures::prelude::*;
-use kuchiki::{ElementData, NodeDataRef};
-use kuchiki::traits::TendrilSink;
-use download::HttpSimple;
-use types::ReleaseStatus;
-use std::io::Cursor;
-use std::sync::Arc;
+use futures::{
+    prelude::*,
+    TryStreamExt,
+    TryFutureExt,
+};
+use kuchiki::{
+    ElementData,
+    NodeDataRef,
+    traits::TendrilSink,
+};
+use crate::{
+    download::HttpSimple,
+    types::ReleaseStatus,
+    ModList,
+};
+use std::{
+    io::{Cursor,Write},
+    sync::Arc,
+};
 use url::Url;
 use regex::Regex;
 
-use termcolor::{ColorSpec, WriteColor};
-use termcolor::Color::*;
-use std::io::Write;
-
-use ::ModList;
+use termcolor::{ColorSpec, WriteColor,Color::*};
 
 
 macro_rules! print_inline{
@@ -186,22 +194,22 @@ fn prompt_yes_no(prompt: String, default: Response) -> Response {
 }
 
 //Checks if any curseforge projects have been moved, and updates the names
-fn update_project_names(mods: ModList) -> Vec<impl Future<Item=ModSource,Error=::Error> + Send + 'static>{
-    let httpclient = HttpSimple::new();
+fn update_project_names(mods: ModList) -> Vec<impl Future<Output=Result<ModSource,crate::Error>> + Send + 'static>{
+    let http_client = HttpSimple::new();
     mods.into_iter().map(|modd|{
-        let httpclient = httpclient.clone();
+        let http_client = http_client.clone();
         match modd {
             ModSource::CurseforgeMod(cfm) => {
-                Box::new(async_block!{
-                    let (_res,url) = self::await!(httpclient.get_following_redirects(cfm.project_uri()?)?)?;
-                    let id = ::curseforge::parse_modid_from_url(url.as_str()).expect("Bad redirect on curseforge?");
-                    Ok(ModSource::CurseforgeMod(::curseforge::Mod{
+                Box::pin(async move{
+                    let (_res,url) = http_client.get_following_redirects(cfm.project_uri()?)?.await?;
+                    let id = crate::curseforge::parse_modid_from_url(url.as_str()).expect("Bad redirect on curseforge?");
+                    Ok(ModSource::CurseforgeMod(crate::curseforge::Mod{
                         id,
                         ..cfm
                     }))
-                }) as Box<Future<Item=ModSource,Error=::Error> + Send>
+                }) as crate::BoxFuture<ModSource>
             }
-            mvn @ ModSource::MavenMod{..} => Box::new(futures::future::ok(mvn)),
+            mvn @ ModSource::MavenMod{..} => Box::pin(futures::future::ok(mvn)),
         }
     }).collect()
 }
@@ -247,7 +255,7 @@ fn find_most_recent(
     target_game_version: semver::VersionReq,
     http_client: HttpSimple,
     target_release_status: ReleaseStatus,
-) -> impl Future<Item = Option<ModVersionInfo>, Error = ::Error> + Send {
+) -> impl Future<Output=Result<Option<ModVersionInfo>,crate::Error>> + Send {
     lazy_static! {
         static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)")
             .expect("Couldn't compile pre-checked regex");
@@ -258,23 +266,19 @@ fn find_most_recent(
     let scrape_url = base_url
         .join(&format!("/projects/{}/files", project_name))
         .unwrap();
-    async_block!{
-        let uri = ::util::url_to_uri(&scrape_url)?;
-        let body = self::await!(http_client.get(uri)
-                .map_err(::Error::from)
-                .and_then(move |res| {
-                    res.into_body().map_err(::Error::from).fold(vec![],
-                                    move |mut buf, chunk| -> Result<Vec<u8>, std::io::Error> {
-                                        std::io::copy(&mut Cursor::new(chunk), &mut buf)?;
-                                        Ok(buf)
-                                    })
-                }))?;
+    async move{
+        let uri = crate::util::url_to_uri(&scrape_url)?;
+        let body = http_client.get(uri)
+                .map_err(crate::Error::from)
+                .await?
+                .into_body()
+                .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
         let doc = kuchiki::parse_html()
             .from_utf8()
             .read_from(&mut Cursor::new(body))
             .unwrap();
         let rows = doc.select("table.project-file-listing tbody tr")
-            .map_err(|_| ::Error::Selector)?;
+            .map_err(|_| crate::Error::Selector)?;
         for row in rows {
             let release_status =
                 row.select_first(".project-file-release-type div").get_attr("title");
@@ -314,27 +318,27 @@ fn find_most_recent(
     }
 }
 
-use curseforge;
-use types::{ModSource, ModpackConfig};
+use crate::curseforge;
+use crate::types::{ModSource, ModpackConfig};
 
 pub fn new_version(
     target_game_version: semver::VersionReq,
     pack_path: String,
     mut pack: ModpackConfig,
-) -> impl Future<Item = (), Error = ::Error> + Send + 'static {
+) -> impl Future<Output=Result<(), crate::Error>> + Send + 'static {
     let http_client = HttpSimple::new();
 
-    let strm = futures::stream::futures_unordered(update_project_names(pack.mods.clone()))
+    let strm = update_project_names(pack.mods.clone()).into_iter().collect::<futures::stream::futures_unordered::FuturesUnordered<_>>()
         .and_then(move |modd|{
             let target_game_version = target_game_version.clone();
             let http_client_handle = http_client.clone();
-            async_block!{
+            async move{
                 match modd{
                     ModSource::CurseforgeMod(curse_mod) => {
-                        let found = self::await!(find_most_recent(curse_mod.id.clone(),
+                        let found = find_most_recent(curse_mod.id.clone(),
                                             target_game_version,
                                             http_client_handle,
-                                            ReleaseStatus::Alpha))?;
+                                            ReleaseStatus::Alpha).await?;
                         if let Some(found) = found {
                             format_colored!((*COLOR_OUTPUT); (&SUCCESS_COLOR){"  COMPATIBLE: "}, "{}", curse_mod.id );
                             assert_eq!(curse_mod.id, found.modd.id);
@@ -364,9 +368,9 @@ pub fn new_version(
             }
         });
 
-    async_block!{
+    async move{
 
-        let modlist: Vec<(ModSource,Option<ReleaseStatus>)> = self::await!(strm.collect())?;
+        let modlist: Vec<(ModSource,Option<ReleaseStatus>)> = strm.try_collect::<Vec<_>>().await?;
 
         let mut total = 0usize;
         let mut alpha_compatible = 0usize;
@@ -459,23 +463,23 @@ pub fn same_version(
     pack_path: String,
     mut pack: ModpackConfig,
     release_status: ReleaseStatus,
-) -> impl Future<Item = (), Error = ::Error> + Send + 'static {
+) -> impl Future<Output=Result<(), crate::Error>> + Send + 'static {
     let http_client = HttpSimple::new();
 
     let target_game_version = pack.version.clone();
 
-    async_block!{
+    async move{
         let mut new_mods = vec![];
         //FIXME: ideally we would borrow pack.mods to iterate over it, but for now we can't due to
         //       borrow tracing limitations in generators
-        let old_mods = self::await!(futures::future::join_all(update_project_names(pack.mods.clone())))?;
+        let old_mods = futures::future::try_join_all(update_project_names(pack.mods.clone())).await?;
         for modd in old_mods{
             let updated = match modd {
                 ModSource::CurseforgeMod(curse_mod) => {
-                    let found = self::await!(find_most_recent(curse_mod.id.clone(),
+                    let found = find_most_recent(curse_mod.id.clone(),
                                             target_game_version.clone(),
                                             http_client.clone(),
-                                            release_status))?;
+                                            release_status).await?;
                     if let Some(found) = found {
                         assert_eq!(curse_mod.id, found.modd.id);
                         if found.modd.version > curse_mod.version {
