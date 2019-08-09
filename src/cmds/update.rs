@@ -27,6 +27,11 @@ fn bar_style() -> ProgressStyle{
         .template("{prefix:23.bold.dim} {spinner:.green} [{elapsed_precise}] {wide_bar} {pos:>3}/{len:3} {msg:!}")
 }
 
+fn spinner_style() -> ProgressStyle{
+    ProgressStyle::default_spinner()
+        .template("{spinner:.green} [{elapsed_precise}] {msg:!}")
+}
+
 pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()>> {
     let mprog = Arc::new(MultiProgress::new());
     let download_manager = download::Manager::new();
@@ -155,19 +160,20 @@ fn download_modlist(
 ) -> impl Future<Output=crate::Result<()>> {
     let log = log.new(o!("stage"=>"download_modlist"));
 
+    let progress = mprog.add(ProgressBar::new_spinner());
+    progress.set_style(spinner_style());
+
     async move{
         pack_path.push("mods");
+        progress.set_prefix("creating mod directory");
         tokio::fs::create_dir_all(pack_path.clone()).await?;
 
-        let entry_stream = tokio::fs::read_dir(pack_path.clone()).await?;
-        let entries: Vec<_> = entry_stream.try_collect().await?;
-
-        let progress = mprog.add(ProgressBar::new(entries.len() as u64));
-        progress.set_style(bar_style());
+        progress.set_prefix("enumerating mod directory");
+        let mut entry_stream = tokio::fs::read_dir(pack_path.clone()).await?;
 
         progress.set_prefix("Removing old mod files");
 
-        for entry in entries {
+        for entry in entry_stream.try_next().await? {
             progress.inc(1);
             progress.set_message(format!("Removing: {}",entry.path().to_str().unwrap()).as_str());
             tokio::fs::remove_file(entry.path().clone()).await?;
