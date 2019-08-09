@@ -215,13 +215,14 @@ impl Manager {
         builder.method(method).uri(uri);
         let mut key = None;
         for (k, v) in self.base_headers() {
+            //k may be None if there's a repeated header value
             builder.header(
                 k.clone()
                     .or_else(|| key.clone())
                     .expect("one of the keys *must* be set"),
                 v,
             );
-            //replace key with with k if it's not None
+            //store current repeated header key
             key = k.or(key);
         }
         builder
