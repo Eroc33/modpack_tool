@@ -123,14 +123,12 @@ impl Downloadable for Uri {
 
 #[derive(Clone)]
 pub struct HttpSimple {
-    http_client: hyper::Client<HttpConnector>,
     https_client: hyper::Client<HttpsConnector<HttpConnector>>,
 }
 
 impl Default for HttpSimple {
     fn default() -> Self {
         Self {
-            http_client: hyper::Client::new(),
             https_client: hyper::Client::builder()
                 .build(HttpsConnector::new(4).expect("Couldn't create httpsconnector")),
         }
@@ -163,15 +161,7 @@ impl HttpSimple {
     }
 
     pub fn request(&self, request: Request<hyper::Body>) -> hyper::client::ResponseFuture {
-        match request.uri().scheme_part().cloned() {
-            Some(ref scheme) if scheme == &http::uri::Scheme::HTTP => {
-                self.http_client.request(request)
-            }
-            Some(ref scheme) if scheme == &http::uri::Scheme::HTTPS => {
-                self.https_client.request(request)
-            }
-            _ => panic!("Invalid url scheme"),
-        }
+        self.https_client.request(request)
     }
 
     pub fn request_following_redirects(

@@ -164,8 +164,7 @@ async fn run_command<'a>(matches: clap::ArgMatches<'a>, log: Logger) -> modpack_
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+async fn async_main() -> Result<()> {
     let _sentry = sentry::init("https://0b0da309fa014d60b7b5e6a9da40529e@sentry.io/1207316");
     sentry::integrations::panic::register_panic_handler();
     let mut builder = env_logger::Builder::from_default_env();
@@ -203,3 +202,11 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn main() ->  Result<()>  {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.spawn(async move {
+        tx.send(async_main().await).unwrap();
+    });
+    rt.block_on(rx).unwrap()
+}

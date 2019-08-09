@@ -51,7 +51,7 @@ pub trait Cache<T: Cacheable + Send + 'static> {
                 Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
                 Err(util::SymlinkError::AlreadyExists) => {
                     //TODO: verify the file, and replace/redownload it if needed
-                    warn!(log, "File already exist, assuming content is correct");
+                    warn!(log, "File already exists, assuming content is correct");
                 }
                 Ok(_) => {}
             }
