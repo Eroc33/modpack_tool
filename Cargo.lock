@@ -1132,7 +1132,6 @@ dependencies = [
  "termcolor 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.2.0 (git+https://github.com/tokio-rs/tokio.git?rev=6cbe3d4f82f2c10be108366ece63e1fb180c90b9)",
- "tokio-io 0.2.0 (git+https://github.com/tokio-rs/tokio.git?rev=6cbe3d4f82f2c10be108366ece63e1fb180c90b9)",
  "url 1.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "zip 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

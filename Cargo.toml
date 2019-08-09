@@ -32,7 +32,6 @@ slog-term = "2"
 termcolor = "0.3.3"
 time = "*"
 tokio = {git="https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9"}
-tokio-io = {git="https://github.com/tokio-rs/tokio.git", rev = "6cbe3d4f82f2c10be108366ece63e1fb180c90b9"}
 url = "1.4"
 zip = "0.2"
 
