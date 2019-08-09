@@ -193,7 +193,7 @@ fn update_project_names(mods: ModList) -> Vec<impl Future<Output=Result<ModSourc
     let http_client = HttpSimple::new();
     mods.into_iter().map(|modd|{
         let http_client = http_client.clone();
-        Box::pin(async move{
+        async move{
             match modd {
                 ModSource::CurseforgeMod(cfm) => {
                     let (_res,url) = http_client.get_following_redirects(cfm.project_uri()?)?.await?;
@@ -205,7 +205,7 @@ fn update_project_names(mods: ModList) -> Vec<impl Future<Output=Result<ModSourc
                 }
                 mvn @ ModSource::MavenMod{..} => Ok(mvn),
             }
-        }) as crate::BoxFuture<ModSource>
+        }
     }).collect()
 }
 

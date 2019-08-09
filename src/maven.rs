@@ -78,32 +78,30 @@ impl cache::Cache<ResolvedArtifact> for Cache {
 }
 
 impl Cache {
-    pub fn verify_cached(
+    pub async fn verify_cached(
         resolved: ResolvedArtifact,
         manager: download::Manager,
-    ) -> download::BoxFuture<VerifyResult> {
-        Box::pin(async move{
-            if Self::is_cached(&resolved) {
-                let cached_path = resolved.cached_path();
-                let sha_url_res = resolved.sha_uri();
-                let mut cached_file = tokio::fs::File::open(cached_path).await?;
+    ) -> download::Result<VerifyResult> {
+        if Self::is_cached(&resolved) {
+            let cached_path = resolved.cached_path();
+            let sha_url_res = resolved.sha_uri();
+            let mut cached_file = tokio::fs::File::open(cached_path).await?;
 
-                let mut sha = HashWriter::new();
-                cached_file.copy(&mut sha).await?;
-                let cached_sha = sha.digest();
+            let mut sha = HashWriter::new();
+            cached_file.copy(&mut sha).await?;
+            let cached_sha = sha.digest();
 
-                let sha_uri = sha_url_res?;
-                let (res,_) = manager.get(sha_uri)?.await?;
-                let hash_str = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
-                if hash_str == format!("{}", cached_sha) {
-                    Ok(VerifyResult::Good)
-                } else {
-                    Ok(VerifyResult::Bad)
-                }
+            let sha_uri = sha_url_res?;
+            let (res,_) = manager.get(sha_uri)?.await?;
+            let hash_str = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
+            if hash_str == format!("{}", cached_sha) {
+                Ok(VerifyResult::Good)
             } else {
-                Ok(VerifyResult::NotInCache)
+                Ok(VerifyResult::Bad)
             }
-        }) as download::BoxFuture<VerifyResult>
+        } else {
+            Ok(VerifyResult::NotInCache)
+        }
     }
 }
 

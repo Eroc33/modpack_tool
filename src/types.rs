@@ -250,7 +250,7 @@ use std::string::String;
 pub type ModList = Vec<ModSource>;
 
 impl MCVersionInfo {
-    pub fn version(ver: &str) -> crate::BoxFuture<Self> {
+    pub fn version(ver: &str) -> impl Future<Output=crate::Result<Self>> {
         let client = hyper::Client::new();
         let uri = Uri::from_str(
             format!(
@@ -259,12 +259,12 @@ impl MCVersionInfo {
                 ver
             ).as_str(),
         ).unwrap();
-        Box::pin(async move{
+        async move{
             let res = client.get(uri).map_err(crate::Error::from).await?;
             let buf = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
             let info: Self = serde_json::de::from_reader(Cursor::new(buf))?;
             Ok(info)
-        }) as crate::BoxFuture<Self>
+        }
     }
 }
 

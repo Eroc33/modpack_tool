@@ -203,7 +203,7 @@ impl Manager {
         path: PathBuf,
         append_filename: bool,
         log: &Logger,
-    ) -> BoxFuture<()> {
+    ) -> impl Future<Output=Result<()>> {
         self._download(uri, path, append_filename, log)
     }
 
@@ -245,7 +245,7 @@ impl Manager {
         path: PathBuf,
         append_filename: bool,
         log: &Logger,
-    ) -> BoxFuture<()> {
+    ) -> impl Future<Output=Result<()>> {
         let log = log.new(o!("uri"=>uri.to_string()));
         trace!(log, "Downloading {}", path.as_path().to_string_lossy());
         let folder_path = if append_filename {
@@ -257,7 +257,7 @@ impl Manager {
         let mut request = self.request_with_base_headers(http::Method::GET, uri);
         let http_client = self.http_client.clone();
 
-        let res = async move{
+        async move{
             trace!(log,"Creating dir {}",folder_path.to_string_lossy());
             tokio::fs::create_dir_all(folder_path).await?;
 
@@ -286,9 +286,7 @@ impl Manager {
                 util::save_stream_to_file(res.into_body(), path).await?;
                 Ok(())
             }
-        };
-
-        Box::pin(res)
+        }
     }
 }
 

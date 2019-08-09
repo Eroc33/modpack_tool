@@ -11,7 +11,6 @@ use zip;
 use failure::*;
 
 use crate::{
-    BoxFuture,
     Result,
     download::{self, Downloadable},
     hacks,
@@ -28,14 +27,14 @@ fn bar_style() -> ProgressStyle{
         .template("{prefix:23.bold.dim} {spinner:.green} [{elapsed_precise}] {wide_bar} {pos:>3}/{len:3} {msg:!}")
 }
 
-pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
+pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()>> {
     let mprog = Arc::new(MultiProgress::new());
     let download_manager = download::Manager::new();
 
     let mprog_runner = mprog.clone();
 
     info!(log, "loading pack config");
-    Box::pin(async move {
+    async move {
         let progress = mprog.add(ProgressBar::new(3));
         progress.set_style(bar_style());
         let t_handle = std::thread::spawn(move ||{
@@ -65,7 +64,7 @@ pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
         info!(log,"Done");
         t_handle.join().unwrap();
         Ok(())
-    })
+    }
 }
 
 fn merge(a: &mut Value, b: &Value) {
@@ -155,10 +154,10 @@ fn download_modlist(
     manager: download::Manager,
     log: &Logger,
     mprog: Arc<MultiProgress>,
-) -> BoxFuture<()> {
+) -> impl Future<Output=crate::Result<()>> {
     let log = log.new(o!("stage"=>"download_modlist"));
 
-    Box::pin(async move{
+    async move{
         pack_path.push("mods");
         tokio::fs::create_dir_all(pack_path.clone()).await?;
 
@@ -179,7 +178,7 @@ fn download_modlist(
         //TODO: add progress tracking to download manager downloads
         mod_list.download(pack_path, manager, log).await?;
         Ok(())
-    })
+    }
 }
 
 fn mc_install_loc() -> PathBuf {
@@ -198,12 +197,12 @@ fn install_forge(
     manager: download::Manager,
     log: &Logger,
     _mprog: Arc<MultiProgress>,
-) -> BoxFuture<VersionId> {
+) -> impl Future<Output=crate::Result<VersionId>> {
 
     let log = log.new(o!("stage"=>"install_forge"));
     pack_path.push("forge");
 
-    Box::pin(async move{
+    async move{
         trace!(log,"Creating pack folder");
         tokio::fs::create_dir_all(pack_path.clone()).await?;
         trace!(log,"Created pack folder");
@@ -250,5 +249,5 @@ fn install_forge(
 
         forge_artifact.install_at_no_classifier(mc_path, manager, log).await?;
         Ok(VersionId(version_id))
-    })
+    }
 }
