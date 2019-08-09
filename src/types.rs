@@ -1,10 +1,10 @@
 use crate::cache::Cache;
 use crate::curseforge;
-use crate::download::{self, DownloadManager, Downloadable};
+use crate::download::{self, Downloadable};
 use crate::forge_version;
 use futures::prelude::*;
 use http::{self, Uri};
-use crate::maven::{MavenArtifact, ResolvedArtifact};
+use crate::maven::{self, ResolvedArtifact};
 use slog::Logger;
 use std::io::{Cursor, Read, Write};
 use std::path::PathBuf;
@@ -21,19 +21,19 @@ pub enum ReleaseStatus {
 pub struct UnknownVariant(String);
 
 impl ReleaseStatus {
-    pub fn value(&self) -> &'static str {
-        match *self {
-            ReleaseStatus::Release => "Release",
-            ReleaseStatus::Beta => "Beta",
-            ReleaseStatus::Alpha => "Alpha",
+    pub fn value(self) -> &'static str {
+        match self {
+            Self::Release => "Release",
+            Self::Beta => "Beta",
+            Self::Alpha => "Alpha",
         }
     }
 
-    pub fn accepts(&self, other: &ReleaseStatus) -> bool {
-        other == self || match *self {
-            ReleaseStatus::Release => false,
-            ReleaseStatus::Beta => ReleaseStatus::Release.accepts(other),
-            ReleaseStatus::Alpha => ReleaseStatus::Beta.accepts(other),
+    pub fn accepts(self, other: Self) -> bool {
+        other == self || match self {
+            Self::Release => false,
+            Self::Beta => Self::Release.accepts(other),
+            Self::Alpha => Self::Beta.accepts(other),
         }
     }
 }
@@ -42,9 +42,9 @@ impl FromStr for ReleaseStatus {
     type Err = UnknownVariant;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Release" => Ok(ReleaseStatus::Release),
-            "Beta" => Ok(ReleaseStatus::Beta),
-            "Alpha" => Ok(ReleaseStatus::Alpha),
+            "Release" => Ok(Self::Release),
+            "Beta" => Ok(Self::Beta),
+            "Alpha" => Ok(Self::Alpha),
             s => Err(UnknownVariant(s.to_string())),
         }
     }
@@ -55,29 +55,29 @@ pub enum ModSource {
     CurseforgeMod(curseforge::Mod),
     MavenMod {
         repo: String,
-        artifact: MavenArtifact,
+        artifact: maven::Artifact,
     },
 }
 
 impl ModSource {
     pub fn version_string(&self) -> String {
         match *self {
-            ModSource::CurseforgeMod(ref modd) => modd.version.to_string(),
-            ModSource::MavenMod { ref artifact, .. } => artifact.version.to_string(),
+            Self::CurseforgeMod(ref modd) => modd.version.to_string(),
+            Self::MavenMod { ref artifact, .. } => artifact.version.to_string(),
         }
     }
     pub fn identifier_string(&self) -> String {
         match *self {
-            ModSource::CurseforgeMod(ref modd) => modd.id.clone(),
-            ModSource::MavenMod { ref artifact, .. } => artifact.to_string(),
+            Self::CurseforgeMod(ref modd) => modd.id.clone(),
+            Self::MavenMod { ref artifact, .. } => artifact.to_string(),
         }
     }
     pub fn guess_project_url(&self) -> Option<String> {
         match *self {
-            ModSource::CurseforgeMod(ref modd) => {
+            Self::CurseforgeMod(ref modd) => {
                 modd.project_uri().map(|uri| uri.to_string()).ok()
             }
-            ModSource::MavenMod { .. } => None,
+            Self::MavenMod { .. } => None,
         }
     }
 }
@@ -86,14 +86,14 @@ impl Downloadable for ModSource {
     fn download(
         self,
         location: PathBuf,
-        manager: DownloadManager,
+        manager: download::Manager,
         log: Logger,
     ) -> download::BoxFuture<()> {
         match self {
-            ModSource::CurseforgeMod(modd) => {
+            Self::CurseforgeMod(modd) => {
                 curseforge::Cache::install_at(modd, location, manager, log)
             }
-            ModSource::MavenMod { repo, artifact } => Box::pin(async move{
+            Self::MavenMod { repo, artifact } => Box::pin(async move{
                 let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
                 artifact.download_from(location.as_ref(), repo, manager, log).await?;
                 Ok(())
@@ -190,15 +190,15 @@ impl Downloadable for MCLibraryListing {
     fn download(
         self,
         mut location: PathBuf,
-        manager: DownloadManager,
+        manager: download::Manager,
         log: Logger,
     ) -> download::BoxFuture<()> {
         Box::pin(async move{
             let resolved_artifact = if self.is_native() {
-                let mut artifact = self.name.parse::<MavenArtifact>().unwrap();
+                let mut artifact = self.name.parse::<maven::Artifact>().unwrap();
                 let disallowed = if let Some(ref rules) = self.rules {
                     rules
-                        .into_iter()
+                        .iter()
                         .any(|rule| rule.os_matches() && rule.action == Action::Disallow)
                 } else {
                     false
@@ -211,7 +211,7 @@ impl Downloadable for MCLibraryListing {
                     Some(artifact.resolve(base))
                 }
             } else {
-                let artifact = self.name.parse::<MavenArtifact>().unwrap();
+                let artifact = self.name.parse::<maven::Artifact>().unwrap();
                 let base = Uri::from_str(MC_LIBS_MAVEN)?;
                 Some(artifact.resolve(base))
             };
@@ -250,7 +250,7 @@ use std::string::String;
 pub type ModList = Vec<ModSource>;
 
 impl MCVersionInfo {
-    pub fn version(ver: &str) -> crate::BoxFuture<MCVersionInfo> {
+    pub fn version(ver: &str) -> crate::BoxFuture<Self> {
         let client = hyper::Client::new();
         let uri = Uri::from_str(
             format!(
@@ -262,9 +262,9 @@ impl MCVersionInfo {
         Box::pin(async move{
             let res = client.get(uri).map_err(crate::Error::from).await?;
             let buf = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
-            let info: MCVersionInfo = serde_json::de::from_reader(Cursor::new(buf))?;
+            let info: Self = serde_json::de::from_reader(Cursor::new(buf))?;
             Ok(info)
-        }) as crate::BoxFuture<MCVersionInfo>
+        }) as crate::BoxFuture<Self>
     }
 }
 
@@ -282,7 +282,7 @@ impl ModpackConfig {
         self.name.replace(|c: char| !c.is_alphanumeric(), "_")
     }
     pub fn forge_maven_artifact(&self) -> Result<ResolvedArtifact, http::uri::InvalidUri> {
-        Ok(MavenArtifact {
+        Ok(maven::Artifact {
             group: "net.minecraftforge".into(),
             artifact: "forge".into(),
             version: self.forge.clone(),

@@ -1,6 +1,6 @@
 // FIXME Forge devs refuse to actually match the spec
 
-use crate::maven::MavenArtifact;
+use crate::maven;
 use serde_json::{self, Value};
 use std;
 use std::path::Path;
@@ -25,7 +25,7 @@ pub fn hack_forge_version_json<P>(path: P) -> crate::Result<()>
 
         for library in libraries {
             let library = library.as_object_mut().expect("library object not a map");
-            let artifact: MavenArtifact = library.get("name")
+            let artifact: maven::Artifact = library.get("name")
                 .expect("no library name")
                 .as_str()
                 .expect("library name was not a string")

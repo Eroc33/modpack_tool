@@ -1,8 +1,6 @@
-use crate::download::{self, DownloadManager};
+use crate::download;
 use futures::future;
-use futures::prelude::*;
 use slog::Logger;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::result::Result;
 use crate::util;
@@ -12,15 +10,16 @@ pub trait Cacheable: Send + Sized + 'static {
     type Cache: Cache<Self>;
     fn cached_path(&self) -> PathBuf;
     fn uri(&self) -> Result<Uri, download::Error>;
-    fn reader(self, manager: DownloadManager, log: Logger) -> download::BoxFuture<fs::File> {
-        Box::pin(
-            Self::Cache::with(self, manager, log).and_then(move |path| futures::future::ready(fs::File::open(path).map_err(download::Error::from))),
-        )
+    fn reader(self, manager: download::Manager, log: Logger) -> download::BoxFuture<tokio::fs::File> {
+        Box::pin(async move{
+            let path = Self::Cache::with(self, manager, log).await?;
+            Ok(tokio::fs::File::open(path).await?)
+        })
     }
     fn install_at(
         self,
         location: &Path,
-        manager: DownloadManager,
+        manager: download::Manager,
         log: Logger,
     ) -> download::BoxFuture<()> {
         Self::Cache::install_at(self, location.to_owned(), manager, log)
@@ -32,24 +31,24 @@ pub trait Cache<T: Cacheable + Send + 'static> {
         t.cached_path().exists()
     }
 
-    fn with(t: T, manager: DownloadManager, log: Logger) -> download::BoxFuture<PathBuf>;
+    fn with(t: T, manager: download::Manager, log: Logger) -> download::BoxFuture<PathBuf>;
 
     fn install_at(
         t: T,
         mut location: PathBuf,
-        manager: DownloadManager,
+        manager: download::Manager,
         log: Logger,
     ) -> download::BoxFuture<()> {
         Box::pin(async move{
             let cached_path = Self::with(t, manager, log.clone()).await?;
             info!(log, "installing item"; "location"=>location.as_path().to_string_lossy().into_owned());
 
-            fs::create_dir_all(&location)?;
+            tokio::fs::create_dir_all(&location).await?;
 
             if let Some(name) = cached_path.file_name() {
                 location.push(name);
             }
-            match util::symlink(cached_path, location, &log) {
+            match util::symlink(cached_path, location, &log).await {
                 Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
                 Err(util::SymlinkError::AlreadyExists) => {
                     //TODO: verify the file, and replace/redownload it if needed
@@ -65,9 +64,9 @@ pub trait Cache<T: Cacheable + Send + 'static> {
 fn first_file_in_folder<P: AsRef<Path>>(path: P) -> Result<PathBuf, download::Error> {
     Ok(path.as_ref()
         .read_dir()
-        .map_err(|_| download::Error::CacheError)?
+        .map_err(|_| download::Error::Cache)?
         .next()
-        .ok_or_else(|| download::Error::CacheError)?
+        .ok_or_else(|| download::Error::Cache)?
         .unwrap()
         .path())
 }
@@ -75,32 +74,31 @@ fn first_file_in_folder<P: AsRef<Path>>(path: P) -> Result<PathBuf, download::Er
 pub struct FolderCache;
 
 impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FolderCache {
-    fn with(t: T, manager: DownloadManager, log: Logger) -> download::BoxFuture<PathBuf> {
+    fn with(t: T, manager: download::Manager, log: Logger) -> download::BoxFuture<PathBuf> {
         let cached_path = t.cached_path();
         let log = log.new(o!("cached_path"=>cached_path.as_path().to_string_lossy().into_owned()));
 
         if Self::is_cached(&t) {
             info!(log, "item was already cached");
-            Box::pin(
-                future::ready(first_file_in_folder(&cached_path)).or_else(move |_| {
-                    //invalidate cache
-                    warn!(log, "Removing invalid cache folder {:?}", cached_path);
-                    future::ready(fs::remove_dir(cached_path).map_err(download::Error::from))
-                        .and_then(|_| {
-                            //FIXME: will retry forever
-                            //retry
-                            Self::with(t, manager, log)
-                        })
-                }),
-            )
+            Box::pin(async move{
+                loop{
+                    if let Ok(path) = first_file_in_folder(&cached_path){
+                        return Ok(path);
+                    }else{
+                        //invalidate cache
+                        warn!(log, "Removing invalid cache folder {:?}", cached_path);
+                        tokio::fs::remove_dir(&cached_path).await?;
+                        //FIXME: will retry forever
+                    }
+                }
+            })
         } else {
             info!(log, "item is not cached, downloading now");
             match t.uri() {
-                Ok(uri) => Box::pin(
-                    manager
-                        .download(uri, cached_path.clone(), true, &log)
-                        .and_then(move |_| futures::future::ready(first_file_in_folder(cached_path))),
-                ),
+                Ok(uri) => Box::pin(async move{
+                    manager.download(uri, cached_path.clone(), true, &log).await?;
+                    Ok(first_file_in_folder(cached_path)?)
+                }),
                 Err(e) => Box::pin(future::err(e)),
             }
         }
@@ -110,7 +108,7 @@ impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FolderCache {
 pub struct FileCache;
 
 impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FileCache {
-    fn with(t: T, manager: DownloadManager, log: Logger) -> download::BoxFuture<PathBuf> {
+    fn with(t: T, manager: download::Manager, log: Logger) -> download::BoxFuture<PathBuf> {
         let cached_path = t.cached_path();
         let log = log.new(o!("cached_path"=>cached_path.as_path().to_string_lossy().into_owned()));
 
@@ -120,10 +118,10 @@ impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FileCache {
         } else {
             info!(log, "item is not cached, downloading now");
             match t.uri() {
-                Ok(uri) => Box::pin(
-                    manager
-                        .download(uri, cached_path.clone(), false, &log)
-                        .map_ok(move |_| cached_path),
+                Ok(uri) => Box::pin(async move{
+                    manager.download(uri, cached_path.clone(), false, &log).await?;
+                    Ok(cached_path)
+                }
                 ),
                 Err(e) => Box::pin(future::err(e)),
             }
@@ -139,7 +137,7 @@ impl<C: Cacheable + Sync> Downloadable for C {
     fn download(
         self,
         location: PathBuf,
-        manager: DownloadManager,
+        manager: download::Manager,
         log: Logger,
     ) -> download::BoxFuture<()> {
         <Self as Cacheable>::Cache::install_at(self, location, manager, log)

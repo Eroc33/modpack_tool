@@ -41,7 +41,7 @@ impl Mod {
                 id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/") >>
                 version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
                 opt!(tag_s!("/download")) >>
-                (Mod {
+                (Self {
                     id: id.to_owned(),
                     version,
                 })

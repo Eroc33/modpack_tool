@@ -57,7 +57,7 @@ pub enum Error {
     #[fail(display = "JSON error: {}", _0)]
     Json(#[cause] serde_json::error::Error),
     #[fail(display = "{}", _0)]
-    ReportError(Context<String>),
+    Report(Context<String>),
     #[fail(display = "couldn't compile selector")]
     Selector,
     #[fail(display = "unknown url scheme: '{}'", scheme)]
@@ -78,43 +78,43 @@ impl From<!> for Error {
 
 impl From<http::uri::InvalidUri> for Error {
     fn from(err: http::uri::InvalidUri) -> Self {
-        Error::Uri(err)
+        Self::Uri(err)
     }
 }
 
 impl From<hyper::Error> for Error {
     fn from(err: hyper::Error) -> Self {
-        Error::Hyper(err)
+        Self::Hyper(err)
     }
 }
 
 impl From<zip::result::ZipError> for Error {
     fn from(err: zip::result::ZipError) -> Self {
-        Error::Zip(err)
+        Self::Zip(err)
     }
 }
 
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
-        Error::Json(err)
+        Self::Json(err)
     }
 }
 
 impl From<download::Error> for Error {
     fn from(err: download::Error) -> Self {
-        Error::Download(err)
+        Self::Download(err)
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Error::Io(err)
+        Self::Io(err)
     }
 }
 
 impl From<Context<String>> for Error {
     fn from(err: Context<String>) -> Self {
-        Error::ReportError(err)
+        Self::Report(err)
     }
 }
 

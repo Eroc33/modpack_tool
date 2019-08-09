@@ -5,7 +5,7 @@ pub const JSON_URL: & str = "http://files.minecraftforge.\
                                     net/maven/net/minecraftforge/forge/json/";
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ForgeVersionList {
+pub struct VersionList {
     adfocus: String,
     artifact: String,
     branches: HashMap<String, u64>,
@@ -44,7 +44,7 @@ impl File {
     }
 }
 /*
-pub fn get_version_list() -> serde_json::Result<ForgeVersionList> {
+pub fn get_version_list() -> serde_json::Result<VersionList> {
     let data = hyper::Client::new().get(JSON_URL).send().unwrap();
     serde_json::de::from_reader(data)
 }

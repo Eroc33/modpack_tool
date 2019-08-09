@@ -96,7 +96,7 @@ pub enum SymlinkError {
 
 impl From<std::io::Error> for SymlinkError {
     fn from(err: std::io::Error) -> Self {
-        SymlinkError::Io(err)
+        Self::Io(err)
     }
 }
 
@@ -105,7 +105,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static SYMLINKS_BLOCKED: AtomicBool = AtomicBool::new(false);
 
 use std::fmt::Debug;
-pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
+pub async fn symlink<P: AsRef<Path> + Debug + Unpin + Send + Clone + 'static, Q: AsRef<Path> + Debug + Unpin + Send + Clone + 'static>(
     src: P,
     dst: Q,
     log: &Logger,
@@ -113,10 +113,10 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
     info!(log, "symlinking {:?} to {:?}", src, dst);
     if SYMLINKS_BLOCKED.load(Ordering::Acquire) {
         warn!(log, "symlink permission denied, falling back to copy");
-        ::std::fs::copy(src, dst)?;
+        fs_copy(src,dst).await?;
         Ok(())
     } else {
-        match _symlink(src.as_ref(), dst.as_ref()) {
+        match symlink_internal(src.clone(), dst.clone()).await {
             //if the file already exists
             #[cfg(windows)]
             Err(ref e) if e.raw_os_error() == Some(183) =>
@@ -129,7 +129,7 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
             {
                 warn!(log, "Symlink permission denied, falling back to copy");
                 SYMLINKS_BLOCKED.store(true, Ordering::Release);
-                ::std::fs::copy(src, dst)?;
+                fs_copy(src,dst).await?;
                 Ok(())
             }
             Ok(_) => Ok(()),
@@ -138,19 +138,30 @@ pub fn symlink<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(
     }
 }
 
+async fn fs_copy<P: AsRef<Path> + Unpin + Send + 'static, Q: AsRef<Path>+ Unpin + Send + 'static>(src: P, dst: Q) -> io::Result<()> {
+    let src_open = tokio::fs::File::open(src);
+    let dst_open = tokio::fs::File::create(dst);
+    let (mut src,mut dst) = futures::try_join!(
+        src_open,
+        dst_open
+    )?;
+    src.copy(&mut dst).await?;
+    Ok(())
+}
+
 #[cfg(windows)]
-fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
-    let metadata = ::std::fs::symlink_metadata(src.as_ref())?;
+async fn symlink_internal<P: AsRef<Path> + Unpin + Send + Clone + 'static, Q: AsRef<Path> + Unpin + Send + 'static>(src: P, dst: Q) -> io::Result<()> {
+    let metadata = tokio::fs::symlink_metadata(src.clone()).await?;
     if metadata.is_file() {
-        ::std::os::windows::fs::symlink_file(src, dst)
+        tokio::fs::os::windows::symlink_file(src, dst).await
     } else if metadata.is_dir() {
-        ::std::os::windows::fs::symlink_dir(src, dst)
+        tokio::fs::os::windows::symlink_dir(src, dst).await
     } else {
         panic!("tried to symlink unknown filetype")
     }
 }
 
 #[cfg(unix)]
-fn _symlink<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
-    ::std::os::unix::fs::symlink(src, dst)
+async fn symlink_internal<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
+    tokio::fs::os::unix::symlink(src, dst).await
 }

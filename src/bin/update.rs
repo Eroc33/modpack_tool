@@ -86,8 +86,8 @@ async fn main() -> Result<()> {
 
     let log_path = "modpack_tool.log";
 
-    let log_file = std::fs::File::create(log_path).expect("Couldn't open log file");
-    let log_file_stream = slog_json::Json::default(log_file);
+    let log_file = tokio::fs::File::create(log_path).await.expect("Couldn't open log file");
+    let log_file_stream = slog_json::Json::default(log_file.into_std());
 
     let root = Logger::root(
         Arc::new(Mutex::new(
@@ -137,7 +137,7 @@ async fn main() -> Result<()> {
                         let file = std::fs::File::open(&pack_path)
                             .context(format!("pack {} does not exist", pack_path))?;
                         let pack: ModpackConfig =
-                            ModpackConfig::load(file).context(format!("pack file in bad format"))?;
+                            ModpackConfig::load(file).context("pack file in bad format".to_string())?;
 
                         if let Some(ver) = args.value_of("mc_version"){
                             let ver = if ver.chars()

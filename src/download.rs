@@ -19,7 +19,6 @@ use time;
 use url::{self, Url};
 use crate::util;
 use std::{
-    fs,
     path::PathBuf,
     task::{Poll,Context},
     pin::Pin,
@@ -37,39 +36,39 @@ pub enum Error {
     Hyper(#[cause] hyper::Error),
     #[fail(display = "DurationOutOfRange error: {}", _0)]
     DurationOutOfRange(#[cause] time::OutOfRangeError),
-    #[fail(display = "StdTimeError error: {}", _0)]
-    StdTimeError(#[cause] ::std::time::SystemTimeError),
+    #[fail(display = "StdTime error: {}", _0)]
+    StdTime(#[cause] ::std::time::SystemTimeError),
     #[fail(display = "Got a redirect without a location header.")]
     MalformedRedirect,
     #[fail(display = "A http client error occurred. Please check your pack.json is valid")]
-    HttpClientError,
+    HttpClient,
     #[fail(display = "A http server error occurred. Please try again later")]
-    HttpServerError,
+    HttpServer,
     #[fail(display = "There was a problem with the cache.")]
-    CacheError,
+    Cache,
 }
 
 impl From<http::uri::InvalidUri> for Error {
     fn from(err: http::uri::InvalidUri) -> Self {
-        Error::Uri(err)
+        Self::Uri(err)
     }
 }
 
 impl From<url::ParseError> for Error {
     fn from(err: url::ParseError) -> Self {
-        Error::Url(err)
+        Self::Url(err)
     }
 }
 
 impl From<hyper::Error> for Error {
     fn from(err: hyper::Error) -> Self {
-        Error::Hyper(err)
+        Self::Hyper(err)
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Error::Io(err)
+        Self::Io(err)
     }
 }
 
@@ -78,11 +77,11 @@ pub type Result<T> = std::result::Result<T, crate::download::Error>;
 pub type BoxFuture<I> = futures::future::BoxFuture<'static,Result<I>>;
 
 pub trait Downloadable: Sync {
-    fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()>;
+    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()>;
 }
 
 impl<D: Downloadable + Send + 'static> Downloadable for Vec<D> {
-    fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
+    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
         Box::pin(
             future::try_join_all(
                 self.into_iter()
@@ -93,10 +92,10 @@ impl<D: Downloadable + Send + 'static> Downloadable for Vec<D> {
 }
 
 impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
-    fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
+    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
         Box::pin(
             future::try_join_all(
-                self.into_iter()
+                self.iter()
                     .map(move |d| {
                         d.clone()
                             .download(location.clone(), manager.clone(), log.clone())
@@ -109,10 +108,9 @@ impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
 }
 
 impl Downloadable for Url {
-    fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
-        let url = self.clone();
+    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
         Box::pin(async move{
-            let uri = util::url_to_uri(&url)?;
+            let uri = util::url_to_uri(&self)?;
             uri.download(location, manager, log).await?;
             Ok(())
         })
@@ -120,7 +118,7 @@ impl Downloadable for Url {
 }
 
 impl Downloadable for Uri {
-    fn download(self, location: PathBuf, manager: DownloadManager, log: Logger) -> BoxFuture<()> {
+    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
         Box::pin(manager.download(self, location, false, &log))
     }
 }
@@ -133,7 +131,7 @@ pub struct HttpSimple {
 
 impl Default for HttpSimple {
     fn default() -> Self {
-        HttpSimple {
+        Self {
             http_client: hyper::Client::new(),
             https_client: hyper::Client::builder()
                 .build(HttpsConnector::new(4).expect("Couldn't create httpsconnector")),
@@ -143,7 +141,7 @@ impl Default for HttpSimple {
 
 impl HttpSimple {
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
     pub fn get(&self, uri: Uri) -> hyper::client::ResponseFuture {
@@ -187,13 +185,13 @@ impl HttpSimple {
 }
 
 #[derive(Default, Clone)]
-pub struct DownloadManager {
+pub struct Manager {
     http_client: HttpSimple,
 }
 
-impl DownloadManager {
+impl Manager {
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
     pub fn get(&self, url: Uri) -> Result<RedirectFollower> {
@@ -263,7 +261,7 @@ impl DownloadManager {
 
         let res = async move{
             trace!(log,"Creating dir {}",folder_path.to_string_lossy());
-            fs::create_dir_all(folder_path)?;
+            tokio::fs::create_dir_all(folder_path).await?;
 
             // FIXME find a way to workout which mod file is which *before* downloading
             if path.exists() && path.is_file() {
@@ -275,7 +273,7 @@ impl DownloadManager {
             }
 
             trace!(log,"Doing the request now");
-            let (res,url) = http_client.request_following_redirects(request)?.await?;
+            let (res,final_url) = http_client.request_following_redirects(request)?.await?;
             trace!(log,"Request done");
 
             if res.status() == http::StatusCode::NOT_MODIFIED {
@@ -284,7 +282,7 @@ impl DownloadManager {
             }else{
                 let mut path = path;
                 if append_filename {
-                    path.push(get_url_filename(&url));
+                    path.push(get_url_filename(&final_url));
                 }
                 trace!(log,"Saving the file to {}",path.as_path().to_string_lossy());
                 util::save_stream_to_file(res.into_body(), path).await?;
@@ -322,7 +320,7 @@ impl RedirectFollower {
         let method = request.method().clone();
         let headers = request.headers().clone();
         let version = request.version();
-        Ok(RedirectFollower {
+        Ok(Self {
             current_response: Some(Box::pin(client.request(request))),
             current_location: Some(url),
             client,
@@ -366,10 +364,10 @@ impl Future for RedirectFollower {
                             *current_location = next_url;
                         }
                         status if status.is_client_error() => {
-                            break Poll::Ready(Err(Error::HttpClientError));
+                            break Poll::Ready(Err(Error::HttpClient));
                         }
                         status if status.is_server_error() => {
-                            break Poll::Ready(Err(Error::HttpServerError));
+                            break Poll::Ready(Err(Error::HttpServer));
                         }
                         hyper::StatusCode::OK => {
                             break Poll::Ready(Ok((res, current_location.clone())));
@@ -386,12 +384,9 @@ impl Future for RedirectFollower {
         } else {
             panic!("RedirectFollower polled after return. This is a bug.")
         };
-        match res {
-            Poll::Pending => {}
-            _ => {
-                this.current_response = None;
+        if res.is_ready(){
+            this.current_response = None;
                 this.current_location = None;
-            }
         }
         res
     }

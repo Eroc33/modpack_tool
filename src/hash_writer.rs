@@ -10,8 +10,8 @@ impl Default for HashWriter {
 }
 
 impl HashWriter {
-    pub fn new() -> HashWriter {
-        HashWriter(Sha1::new())
+    pub fn new() -> Self {
+        Self(Sha1::new())
     }
     pub fn digest(&self) -> Digest {
         self.0.digest()

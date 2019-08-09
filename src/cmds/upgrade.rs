@@ -13,7 +13,6 @@ use nom;
 
 use futures::{
     prelude::*,
-    TryStreamExt,
 };
 use kuchiki::{
     ElementData,
@@ -32,7 +31,7 @@ use std::{
 use url::Url;
 use regex::Regex;
 
-use termcolor::{ColorSpec, WriteColor,Color::*};
+use termcolor::{ColorSpec, WriteColor, Color};
 
 
 macro_rules! print_inline{
@@ -91,27 +90,27 @@ lazy_static! {
     ));
     static ref INFO_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
-        spec.set_fg(Some(Cyan)).set_bold(true).set_intense(true);
+        spec.set_fg(Some(Color::Cyan)).set_bold(true).set_intense(true);
         spec
     };
     static ref WARN_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
-        spec.set_fg(Some(Yellow)).set_bold(true).set_intense(true);
+        spec.set_fg(Some(Color::Yellow)).set_bold(true).set_intense(true);
         spec
     };
     static ref SUCCESS_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
-        spec.set_fg(Some(Green)).set_bold(true).set_intense(true);
+        spec.set_fg(Some(Color::Green)).set_bold(true).set_intense(true);
         spec
     };
     static ref FAILURE_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
-        spec.set_fg(Some(Red)).set_bold(true).set_intense(true);
+        spec.set_fg(Some(Color::Red)).set_bold(true).set_intense(true);
         spec
     };
     static ref DEFAULT_COLOR: ColorSpec = {
         let mut spec = ColorSpec::new();
-        spec.set_fg(Some(White));
+        spec.set_fg(Some(Color::White));
         spec
     };
 }
@@ -135,8 +134,8 @@ impl Response{
     fn from_str(s: &str) -> Result<Option<Self>, ()> {
         let res = alt_complete!(
             s.trim(),
-            map!(re_match!(r"(?i)Y|Yes"), |_| Some(Response::Yes)) |
-            map!(re_match!(r"(?i)N|No"), |_| Some(Response::No)) |
+            map!(re_match!(r"(?i)Y|Yes"), |_| Some(Self::Yes)) |
+            map!(re_match!(r"(?i)N|No"), |_| Some(Self::No)) |
             map!(tag!(""), |_| None)
         );
         match res{
@@ -177,7 +176,7 @@ mod tests{
     }
 }
 
-fn prompt_yes_no(prompt: String, default: Response) -> Response {
+fn prompt_yes_no(prompt: &str, default: Response) -> Response {
     loop{
         match default {
             Response::Yes => print_inline!("{}[Y/n]",prompt),
@@ -232,7 +231,7 @@ impl SelectExt for NodeDataRef<ElementData>{
             .attributes
             .borrow()
             .get(name)
-            .map(|s| s.to_owned())
+            .map(std::borrow::ToOwned::to_owned)
     }
 }
 
@@ -250,7 +249,7 @@ fn curseforge_ver_to_semver<S>(version: S) -> semver::Version
 }
 
 fn find_most_recent(
-    project_name: String,
+    project_name: &str,
     target_game_version: semver::VersionReq,
     http_client: HttpSimple,
     target_release_status: ReleaseStatus,
@@ -302,12 +301,12 @@ fn find_most_recent(
             let release_status =
             release_status.map(|status| status.parse().expect("Invalid ReleaseStatus"));
 
-            if release_status.map(|status| target_release_status.accepts(&status)).unwrap_or(false) && game_versions.iter().any(|ver| target_game_version.matches(ver)){
-                let url = primary_file.map(|s| base_url.join(&s).unwrap()).unwrap();
+            if release_status.map_or(false, |status| target_release_status.accepts(status)) && game_versions.iter().any(|ver| target_game_version.matches(ver)){
+                let file_url = primary_file.map(|s| base_url.join(&s).unwrap()).unwrap();
                 return Ok(Some(ModVersionInfo {
-                    modd: curseforge::Mod::from_url(url.as_str())?,
+                    modd: curseforge::Mod::from_url(file_url.as_str())?,
                     file_name,
-                    download_url: url,
+                    download_url: file_url,
                     release_status: release_status.unwrap(),
                     game_versions,
                 }));
@@ -334,7 +333,7 @@ pub fn new_version(
             async move{
                 match modd{
                     ModSource::CurseforgeMod(curse_mod) => {
-                        let found = find_most_recent(curse_mod.id.clone(),
+                        let found = find_most_recent(&curse_mod.id,
                                             target_game_version,
                                             http_client_handle,
                                             ReleaseStatus::Alpha).await?;
@@ -349,10 +348,9 @@ pub fn new_version(
                                 }else{
                                     unreachable!("Status was not release, alpha, or beta")
                                 };
-                                format_coloredln!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)", a_an, found.release_status.value() } );
-                            }else{
-                                format_coloredln!((*COLOR_OUTPUT); "" );
+                                format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){ " (as {} {} release)", a_an, found.release_status.value() } );
                             }
+                            format_coloredln!((*COLOR_OUTPUT); "" );
                             Ok((curse_mod.into(),Some(found.release_status)))
                         } else {
                             format_coloredln!((*COLOR_OUTPUT); (&FAILURE_COLOR){"INCOMPATIBLE: "}, "{}", curse_mod.id );
@@ -371,9 +369,9 @@ pub fn new_version(
 
         let modlist: Vec<(ModSource,Option<ReleaseStatus>)> = strm.try_collect::<Vec<_>>().await?;
 
-        let mut total = 0usize;
-        let mut alpha_compatible = 0usize;
-        let mut beta_compatible = 0usize;
+        let mut total = 0_usize;
+        let mut alpha_compatible = 0_usize;
+        let mut beta_compatible = 0_usize;
         let mut compatible = vec![];
         let mut incompatible = vec![];
 
@@ -401,24 +399,24 @@ pub fn new_version(
             println!("All of your mods are compatible.");
             if beta_compatible != 0 {
                 min_required_status = ReleaseStatus::Beta;
-                let percent_beta_compatible = (beta_compatible as f32)/(total as f32) * 100.0;
+                let percent_beta_compatible = (beta_compatible as f64)/(total as f64) * 100.0;
                 println!("(although {:.1}% are compatible only in beta release)",percent_beta_compatible);
             }
             if alpha_compatible != 0 {
                 min_required_status = ReleaseStatus::Alpha;
-                let percent_alpha_compatible = (alpha_compatible as f32)/(total as f32) * 100.0;
+                let percent_alpha_compatible = (alpha_compatible as f64)/(total as f64) * 100.0;
                 println!("(although {:.1}% are compatible only in alpha release)",percent_alpha_compatible);
             }
-            if prompt_yes_no("Upgrade now?".into(),Response::Yes) == Response::Yes{
+            if prompt_yes_no("Upgrade now?",Response::Yes) == Response::Yes{
                 match min_required_status {
                     ReleaseStatus::Alpha if pack_update_status != ReleaseStatus::Alpha => {
-                        if prompt_yes_no("This will mean your pack must use alpha status mods. Is this ok?".into(),Response::No) == Response::No{
+                        if prompt_yes_no("This will mean your pack must use alpha status mods. Is this ok?",Response::No) == Response::No{
                             println!("Canceling upgrade");
                             return Ok(());
                         }
                     },
                     ReleaseStatus::Beta if pack_update_status != ReleaseStatus::Beta => {
-                        if prompt_yes_no("This will mean your pack must use beta status mods. Is this ok?".into(),Response::No) == Response::No{
+                        if prompt_yes_no("This will mean your pack must use beta status mods. Is this ok?",Response::No) == Response::No{
                             println!("Canceling upgrade");
                             return Ok(());
                         }
@@ -438,12 +436,12 @@ pub fn new_version(
                 //dedup via hashset
                 pack.mods = compatible.into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
 
-                let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
-                serde_json::ser::to_writer_pretty(&mut file, &pack)?;
+                let file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
+                serde_json::ser::to_writer_pretty(&mut file.into_std(), &pack)?;
                 return Ok(());
             }
         }else{
-            let percent_compatible = (compatible.len() as f32)/(total as f32) * 100.0;
+            let percent_compatible = (compatible.len() as f64)/(total as f64) * 100.0;
             format_colored!((*COLOR_OUTPUT); (&INFO_COLOR){"\
                 {:.1}% of your mods are compatible.\n\
                 You must remove or replace incompatible mods before you can upgrade.\n\
@@ -475,7 +473,7 @@ pub fn same_version(
         for modd in old_mods{
             let updated = match modd {
                 ModSource::CurseforgeMod(curse_mod) => {
-                    let found = find_most_recent(curse_mod.id.clone(),
+                    let found = find_most_recent(&curse_mod.id,
                                             target_game_version.clone(),
                                             http_client.clone(),
                                             release_status).await?;
@@ -487,7 +485,7 @@ pub fn same_version(
                                 curse_mod.version,
                                 found.modd.version,
                                 found.file_name);
-                            if prompt_yes_no(prompt,Response::Yes) == Response::Yes {
+                            if prompt_yes_no(&prompt,Response::Yes) == Response::Yes {
                                 Some(found.modd.into())
                             } else {
                                 println!("\t skipping.");
@@ -515,8 +513,8 @@ pub fn same_version(
             pack.replace_mod(modsource);
         }
 
-        let mut file = std::fs::File::create(pack_path).expect("pack does not exist");
-        pack.save(&mut file)?;
+        let file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
+        pack.save(&mut file.into_std())?;
         Ok(())
     }
 }

@@ -13,7 +13,7 @@ use failure::*;
 use crate::{
     BoxFuture,
     Result,
-    download::{DownloadManager, Downloadable},
+    download::{self, Downloadable},
     hacks,
     maven,
     types::*,
@@ -30,19 +30,19 @@ fn bar_style() -> ProgressStyle{
 
 pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
     let mprog = Arc::new(MultiProgress::new());
-    let download_manager = DownloadManager::new();
+    let download_manager = download::Manager::new();
 
     let mprog_runner = mprog.clone();
 
     info!(log, "loading pack config");
     Box::pin(async move {
-        let bar = mprog.add(ProgressBar::new(3));
-        bar.set_style(bar_style());
+        let progress = mprog.add(ProgressBar::new(3));
+        progress.set_style(bar_style());
         let t_handle = std::thread::spawn(move ||{
             mprog_runner.join().unwrap();
         });
-        let file = std::fs::File::open(path.clone()).context(format!("{:?} is not a file",&path))?;
-        let pack = ModpackConfig::load(file).context(format!("{:?} is not a valid modpack config",&path))?;
+        let file = tokio::fs::File::open(path.clone()).await.context(format!("{:?} is not a file",&path))?;
+        let pack = ModpackConfig::load(file.into_std()).context(format!("{:?} is not a valid modpack config",&path))?;
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());
@@ -60,8 +60,8 @@ pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
             install_fut,
             download_mods_fut
         )?;
-        //bar.enable_steady_tick(10);
-        add_launcher_profile(&pack_path, pack_name, id, &log, bar)?.await?;
+        //progress.enable_steady_tick(10);
+        add_launcher_profile(&pack_path, pack_name, id, &log, progress)?.await?;
         info!(log,"Done");
         t_handle.join().unwrap();
         Ok(())
@@ -84,9 +84,9 @@ fn add_launcher_profile(
     pack_name: String,
     version_id: VersionId,
     _log: &Logger,
-    bar: ProgressBar,
+    progress: ProgressBar,
 ) -> Result<impl Future<Output=Result<()>> + Send + 'static> {
-    bar.set_prefix("Adding launcher profile");
+    progress.set_prefix("Adding launcher profile");
 
     //de UNC prefix path, because apparently java can't handle it
     let pack_path = pack_path.canonicalize()?;
@@ -95,14 +95,14 @@ fn add_launcher_profile(
     let mut mc_path = mc_install_loc();
     mc_path.push("launcher_profiles.json");
 
-    bar.set_message("loading profile json");
+    progress.set_message("loading profile json");
 
     Ok(
         async move{
             let profiles_file = tokio::fs::File::open(mc_path.clone()).await?;
             let out = {
-                bar.inc(1);
-                bar.set_message("loaded profile json");
+                progress.inc(1);
+                progress.set_message("loaded profile json");
                 let mut launcher_profiles: Value = serde_json::from_reader(profiles_file.into_std())?;
 
                 {
@@ -137,13 +137,13 @@ fn add_launcher_profile(
                         }
                     }
                 }
-                bar.inc(1);
-                bar.set_message("Saving new profiles json");
+                progress.inc(1);
+                progress.set_message("Saving new profiles json");
                 serde_json::to_vec_pretty(&launcher_profiles)?
             };
             let mut out_file = tokio::fs::File::create(mc_path).await?;
             out_file.write(&out[..]).await?;
-            bar.finish_with_message("done");
+            progress.finish_with_message("done");
             Ok(())
         }
     )
@@ -152,7 +152,7 @@ fn add_launcher_profile(
 fn download_modlist(
     mut pack_path: PathBuf,
     mod_list: ModList,
-    manager: DownloadManager,
+    manager: download::Manager,
     log: &Logger,
     mprog: Arc<MultiProgress>,
 ) -> BoxFuture<()> {
@@ -165,17 +165,17 @@ fn download_modlist(
         let entry_stream = tokio::fs::read_dir(pack_path.clone()).await?;
         let entries: Vec<_> = entry_stream.try_collect().await?;
 
-        let bar = mprog.add(ProgressBar::new(entries.len() as u64));
-        bar.set_style(bar_style());
+        let progress = mprog.add(ProgressBar::new(entries.len() as u64));
+        progress.set_style(bar_style());
 
-        bar.set_prefix("Removing old mod files");
+        progress.set_prefix("Removing old mod files");
 
         for entry in entries {
-            bar.inc(1);
-            bar.set_message(format!("Removing: {}",entry.path().to_str().unwrap()).as_str());
+            progress.inc(1);
+            progress.set_message(format!("Removing: {}",entry.path().to_str().unwrap()).as_str());
             tokio::fs::remove_file(entry.path().clone()).await?;
         }
-        bar.finish_with_message("Done");
+        progress.finish_with_message("Done");
         //TODO: add progress tracking to download manager downloads
         mod_list.download(pack_path, manager, log).await?;
         Ok(())
@@ -195,7 +195,7 @@ struct VersionId(pub String);
 fn install_forge(
     mut pack_path: PathBuf,
     forge_artifact: maven::ResolvedArtifact,
-    manager: DownloadManager,
+    manager: download::Manager,
     log: &Logger,
     _mprog: Arc<MultiProgress>,
 ) -> BoxFuture<VersionId> {
@@ -212,7 +212,7 @@ fn install_forge(
         let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await?;
 
         debug!(log, "Opening forge jar");
-        let mut zip_reader = zip::ZipArchive::new(reader)?;
+        let mut zip_reader = zip::ZipArchive::new(reader.into_std())?;
         let version_id: String = {
             debug!(log, "Reading version json");
             let version_reader = zip_reader.by_name("version.json")?;
