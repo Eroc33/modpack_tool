@@ -12,7 +12,7 @@ use failure::*;
 
 use crate::{
     Result,
-    download::{self, Downloadable},
+    download::{self, DownloadMulti},
     hacks,
     maven,
     types::*,
@@ -58,7 +58,6 @@ pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()
             install_fut,
             download_mods_fut
         )?;
-        //progress.enable_steady_tick(10);
         add_launcher_profile(&pack_path, pack_name, id, &log, progress)?.await?;
         info!(log,"Done");
         t_handle.join().unwrap();
@@ -141,7 +140,7 @@ fn add_launcher_profile(
             };
             let mut out_file = tokio::fs::File::create(mc_path).await?;
             crate::async_json::write(&mut out_file, &launcher_profiles).await?;
-            progress.finish_with_message("done");
+            progress.finish_with_message("Done");
             Ok(())
         }
     )
@@ -174,8 +173,12 @@ fn download_modlist(
             tokio::fs::remove_file(entry.path().clone()).await?;
         }
         progress.finish_with_message("Done");
-        //TODO: add progress tracking to download manager downloads
-        mod_list.download(pack_path, manager, log).await?;
+        let progress = mprog.add(ProgressBar::new(mod_list.len() as u64));
+        progress.set_style(bar_style());
+
+        progress.set_prefix("Downloading new mod files");
+        mod_list.download_all(pack_path, manager, log, progress.clone()).await?;
+        progress.finish_with_message("Done");
         Ok(())
     }
 }

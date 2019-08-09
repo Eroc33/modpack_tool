@@ -15,7 +15,7 @@ html5ever = "0.22.0"
 http = "0.1.5"
 hyper = { git = "https://github.com/hadashiA/hyper", rev="48ff03bb97af43d507d3ac99a4b7a1ff4b9e64cf" }
 hyper-tls = {path="../hyper-tls"}
-indicatif = "0.10.2"
+indicatif = "0.11.0"
 kuchiki = "0.7.3"
 lazy_static = "1.0"
 log = "*"

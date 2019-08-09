@@ -23,6 +23,7 @@ use std::{
     task::{Poll,Context},
     pin::Pin,
 };
+use indicatif::ProgressBar;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -80,26 +81,20 @@ pub trait Downloadable: Sync {
     fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()>;
 }
 
-impl<D: Downloadable + Send + 'static> Downloadable for Vec<D> {
-    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
+pub trait DownloadMulti: Sync {
+    fn download_all(self, location: PathBuf, manager: Manager, log: Logger, progress: ProgressBar) -> BoxFuture<()>;
+}
+
+impl<D: Downloadable + Send + 'static> DownloadMulti for Vec<D> {
+    fn download_all(self, location: PathBuf, manager: Manager, log: Logger, progress: ProgressBar) -> BoxFuture<()> {
+        progress.set_length(self.len() as u64);
         Box::pin(
             future::try_join_all(
                 self.into_iter()
-                    .map(move |d| d.download(location.clone(), manager.clone(), log.clone())),
-            ).map_ok(|_| ()),
-        )
-    }
-}
-
-impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
-    fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
-        Box::pin(
-            future::try_join_all(
-                self.iter()
                     .map(move |d| {
-                        d.clone()
-                            .download(location.clone(), manager.clone(), log.clone())
-                    })
+                        let progress = progress.clone();
+                        d.download(location.clone(), manager.clone(), log.clone()).map_ok(move |_| progress.inc(1))
+                    }),
             ).map_ok(|_| ()),
         )
     }
