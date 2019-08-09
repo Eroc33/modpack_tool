@@ -100,8 +100,6 @@ impl<'a, D: Downloadable + Send + Clone> Downloadable for &'a [D] {
                         d.clone()
                             .download(location.clone(), manager.clone(), log.clone())
                     })
-                    .collect::<Vec<BoxFuture<()>>>()
-                    .into_iter(),
             ).map_ok(|_| ()),
         )
     }
