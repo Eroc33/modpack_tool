@@ -50,8 +50,7 @@ pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()
         let install_fut = install_forge(pack_path.clone(),
                             forge_maven_artifact,
                             download_manager.clone(),
-                            &log,
-                            mprog.clone());
+                            &log);
 
         let download_mods_fut = download_modlist(pack_path.clone(), mods, download_manager.clone(), &log, mprog.clone());
 
@@ -196,7 +195,6 @@ fn install_forge(
     forge_artifact: maven::ResolvedArtifact,
     manager: download::Manager,
     log: &Logger,
-    _mprog: Arc<MultiProgress>,
 ) -> impl Future<Output=crate::Result<VersionId>> {
 
     let log = log.new(o!("stage"=>"install_forge"));
