@@ -194,7 +194,7 @@ impl Manager {
         append_filename: bool,
         log: &Logger,
     ) -> impl Future<Output=Result<()>> {
-        self._download(uri, path, append_filename, log)
+        self.download_internal(uri, path, append_filename, log)
     }
 
     fn base_headers(&self) -> HeaderMap {
@@ -229,7 +229,7 @@ impl Manager {
             .expect("error building request")
     }
 
-    fn _download(
+    fn download_internal(
         &self,
         uri: Uri,
         path: PathBuf,
