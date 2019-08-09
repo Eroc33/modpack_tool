@@ -1,11 +1,8 @@
-//#![allow(redundant_closure)]
-use futures::future;
 use futures::prelude::*;
 use http::Uri;
 use slog::Logger;
 use std::{
-    fs::{self, File},
-    io::prelude::*,
+    fs,
     iter::FromIterator,
     path::{Path, PathBuf},
     str::FromStr,
@@ -16,6 +13,7 @@ use crate::{
     download,
     hash_writer::HashWriter,
 };
+use tokio::io::AsyncReadExt;
 
 const CACHE_DIR: &str = "./mvn_cache/";
 
@@ -66,58 +64,46 @@ impl cache::Cache<ResolvedArtifact> for Cache {
         let log = log.new(
             o!("artifact"=>artifact.artifact.to_string(),"repo"=>artifact.repo.to_string(),"cached_path"=>cached_path.as_path().to_string_lossy().into_owned()),
         );
-        info!(log, "caching maven artifact");
-        if Self::is_cached(&artifact) {
-            info!(log, "artifact was already cached");
-            Box::pin(future::ok(cached_path))
-        } else {
-            info!(log, "artifact is not cached, downloading now");
-            match artifact.uri() {
-                Ok(url) => Box::pin(
-                    manager
-                        .download(url, cached_path.clone(), false, &log)
-                        .map_ok(move |_| cached_path),
-                ),
-                Err(e) => Box::pin(future::err(e)),
+        Box::pin(async move{
+            info!(log, "caching maven artifact");
+            if !Self::is_cached(&artifact) {
+                info!(log, "artifact is not cached, downloading now");
+                let url = artifact.uri()?;
+                manager
+                    .download(url, cached_path.clone(), false, &log).await?;
             }
-        }
+            Ok(cached_path)
+        })
     }
 }
 
 impl Cache {
     pub fn verify_cached(
-        resolved: &ResolvedArtifact,
+        resolved: ResolvedArtifact,
         manager: download::Manager,
     ) -> download::BoxFuture<VerifyResult> {
-        if Self::is_cached(&resolved) {
-            let cached_path = resolved.cached_path();
-            let sha_url_res = resolved.sha_uri();
-            Box::pin(async move{
-                let mut cached_file = File::open(cached_path)?;
+        Box::pin(async move{
+            if Self::is_cached(&resolved) {
+                let cached_path = resolved.cached_path();
+                let sha_url_res = resolved.sha_uri();
+                let mut cached_file = tokio::fs::File::open(cached_path).await?;
 
                 let mut sha = HashWriter::new();
-                ::std::io::copy(&mut cached_file, &mut sha)?;
+                cached_file.copy(&mut sha).await?;
                 let cached_sha = sha.digest();
 
                 let sha_uri = sha_url_res?;
                 let (res,_) = manager.get(sha_uri)?.await?;
-                let hash_str = res.into_body()
-                    .map_err(download::Error::from)
-                    .try_fold(String::new(), |mut buf, chunk|{
-                                async move{
-                                    chunk.as_ref().read_to_string(&mut buf)?;
-                                    Ok(buf)
-                                }
-                            }).await?;
+                let hash_str = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
                 if hash_str == format!("{}", cached_sha) {
                     Ok(VerifyResult::Good)
                 } else {
                     Ok(VerifyResult::Bad)
                 }
-            })
-        } else {
-            Box::pin(future::ok(VerifyResult::NotInCache)) as download::BoxFuture<VerifyResult>
-        }
+            } else {
+                Ok(VerifyResult::NotInCache)
+            }
+        }) as download::BoxFuture<VerifyResult>
     }
 }
 

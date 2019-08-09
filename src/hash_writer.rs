@@ -28,3 +28,34 @@ impl Write for HashWriter {
         Ok(())
     }
 }
+
+use std::{
+    task::{Poll,Context},
+    pin::Pin,
+};
+
+impl tokio::io::AsyncWrite for HashWriter{
+    fn poll_write(
+        mut self: Pin<&mut Self>, 
+        _cx: &mut Context, 
+        buf: &[u8]
+    ) -> Poll<tokio::io::Result<usize>>{
+        self.as_mut().0.update(buf);
+        Poll::Ready(Ok(buf.len()))
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>, 
+        _cx: &mut Context
+    ) -> Poll<tokio::io::Result<()>>{
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(
+        self: Pin<&mut Self>, 
+        _cx: &mut Context
+    ) -> Poll<tokio::io::Result<()>>{
+        Poll::Ready(Ok(()))
+    }
+
+}

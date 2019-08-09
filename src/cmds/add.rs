@@ -9,10 +9,9 @@ where
 {
     use crate::types::ModpackConfig;
 
-    super::replace(pack_path, |file| {
+    super::replace(pack_path, |mut file| {
         async move{
-            let mut pack: ModpackConfig =
-                serde_json::de::from_reader(file.into_std()).expect("pack file in bad format");
+            let mut pack: ModpackConfig = crate::async_json::read(&mut file).await.expect("pack file missing, or in bad format");
 
             pack.add_mod_by_url(mod_url.as_str())
                 .expect("Unparseable modsource url");

@@ -5,7 +5,7 @@ use futures::{
 use slog::Logger;
 use std::path::PathBuf;
 use serde_json::{self, Value};
-use tokio::{self,io::AsyncWriteExt};
+use tokio;
 use std;
 use zip;
 use failure::*;
@@ -41,8 +41,8 @@ pub fn update(path: PathBuf, log: Logger) -> BoxFuture<()> {
         let t_handle = std::thread::spawn(move ||{
             mprog_runner.join().unwrap();
         });
-        let file = tokio::fs::File::open(path.clone()).await.context(format!("{:?} is not a file",&path))?;
-        let pack = ModpackConfig::load(file.into_std()).context(format!("{:?} is not a valid modpack config",&path))?;
+        let mut file = tokio::fs::File::open(path.clone()).await.context(format!("{:?} is not a file",&path))?;
+        let pack: ModpackConfig = crate::async_json::read(&mut file).await.context(format!("{:?} is not a valid modpack config",&path))?;
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());
@@ -99,11 +99,11 @@ fn add_launcher_profile(
 
     Ok(
         async move{
-            let profiles_file = tokio::fs::File::open(mc_path.clone()).await?;
-            let out = {
+            let mut profiles_file = tokio::fs::File::open(mc_path.clone()).await?;
+            let launcher_profiles = {
                 progress.inc(1);
                 progress.set_message("loaded profile json");
-                let mut launcher_profiles: Value = serde_json::from_reader(profiles_file.into_std())?;
+                let mut launcher_profiles: Value = crate::async_json::read(&mut profiles_file).await?;
 
                 {
                     use serde_json::map::Entry;
@@ -139,10 +139,10 @@ fn add_launcher_profile(
                 }
                 progress.inc(1);
                 progress.set_message("Saving new profiles json");
-                serde_json::to_vec_pretty(&launcher_profiles)?
+                launcher_profiles
             };
             let mut out_file = tokio::fs::File::create(mc_path).await?;
-            out_file.write(&out[..]).await?;
+            crate::async_json::write(&mut out_file, &launcher_profiles).await?;
             progress.finish_with_message("done");
             Ok(())
         }

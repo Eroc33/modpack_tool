@@ -19,11 +19,6 @@ extern crate nom;
 use regex;
 #[macro_use]
 extern crate lazy_static;
-//FIXME: has_class in kuchiki should probably not require selectors to be imported
-//       maybe file a bug for this
-
-
-
 
 use failure::Context;
 
@@ -37,6 +32,7 @@ pub mod forge_version;
 pub mod hash_writer;
 pub mod hacks;
 pub mod cmds;
+pub mod async_json;
 
 pub use download::Downloadable;
 
@@ -69,6 +65,15 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<crate::async_json::Error> for Error{
+    fn from(err: crate::async_json::Error) -> Self {
+        match err{
+            crate::async_json::Error::Io(io) => Self::Io(io),
+            crate::async_json::Error::Json(io) => Self::Json(io),
+        }
+    }
+}
 
 impl From<!> for Error {
     fn from(never: !) -> Self {

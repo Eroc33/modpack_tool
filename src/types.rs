@@ -6,7 +6,7 @@ use futures::prelude::*;
 use http::{self, Uri};
 use crate::maven::{self, ResolvedArtifact};
 use slog::Logger;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor};
 use std::path::PathBuf;
 use semver;
 
@@ -324,21 +324,6 @@ impl ModpackConfig {
     pub fn add_mod_by_url(&mut self, mod_url: &str) -> crate::Result<()> {
         let modsource: ModSource = curseforge::Mod::from_url(mod_url)?.into();
         self.replace_mod(modsource);
-        Ok(())
-    }
-
-    pub fn load<R>(reader: R) -> crate::Result<Self>
-    where
-        R: Read,
-    {
-        Ok(serde_json::de::from_reader(reader)?)
-    }
-
-    pub fn save<W>(&self, writer: &mut W) -> crate::Result<()>
-    where
-        W: Write,
-    {
-        serde_json::ser::to_writer_pretty(writer, &self)?;
         Ok(())
     }
 }

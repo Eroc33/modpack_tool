@@ -1,11 +1,8 @@
-use serde_json;
 use kuchiki;
 use futures;
 use regex;
 use semver;
 use termcolor;
-//FIXME: has_class in kuchiki should probably not require selectors to be imported
-//       maybe file a bug for this
 use selectors::Element;
 use selectors::attr::CaseSensitivity;
 use std;
@@ -196,19 +193,19 @@ fn update_project_names(mods: ModList) -> Vec<impl Future<Output=Result<ModSourc
     let http_client = HttpSimple::new();
     mods.into_iter().map(|modd|{
         let http_client = http_client.clone();
-        match modd {
-            ModSource::CurseforgeMod(cfm) => {
-                Box::pin(async move{
+        Box::pin(async move{
+            match modd {
+                ModSource::CurseforgeMod(cfm) => {
                     let (_res,url) = http_client.get_following_redirects(cfm.project_uri()?)?.await?;
                     let id = crate::curseforge::parse_modid_from_url(url.as_str()).expect("Bad redirect on curseforge?");
                     Ok(ModSource::CurseforgeMod(crate::curseforge::Mod{
                         id,
                         ..cfm
                     }))
-                }) as crate::BoxFuture<ModSource>
+                }
+                mvn @ ModSource::MavenMod{..} => Ok(mvn),
             }
-            mvn @ ModSource::MavenMod{..} => Box::pin(futures::future::ok(mvn)),
-        }
+        }) as crate::BoxFuture<ModSource>
     }).collect()
 }
 
@@ -436,8 +433,8 @@ pub fn new_version(
                 //dedup via hashset
                 pack.mods = compatible.into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
 
-                let file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
-                serde_json::ser::to_writer_pretty(&mut file.into_std(), &pack)?;
+                let mut file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
+                crate::async_json::write_pretty(&mut file, &pack).await?;
                 return Ok(());
             }
         }else{
@@ -513,8 +510,8 @@ pub fn same_version(
             pack.replace_mod(modsource);
         }
 
-        let file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
-        pack.save(&mut file.into_std())?;
+        let mut file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
+        crate::async_json::write_pretty(&mut file, &pack).await?;
         Ok(())
     }
 }

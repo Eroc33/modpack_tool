@@ -1,5 +1,4 @@
 use crate::download;
-use futures::future;
 use slog::Logger;
 use std::path::{Path, PathBuf};
 use std::result::Result;
@@ -78,30 +77,23 @@ impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FolderCache {
         let cached_path = t.cached_path();
         let log = log.new(o!("cached_path"=>cached_path.as_path().to_string_lossy().into_owned()));
 
-        if Self::is_cached(&t) {
-            info!(log, "item was already cached");
-            Box::pin(async move{
-                loop{
-                    if let Ok(path) = first_file_in_folder(&cached_path){
-                        return Ok(path);
-                    }else{
-                        //invalidate cache
-                        warn!(log, "Removing invalid cache folder {:?}", cached_path);
-                        tokio::fs::remove_dir(&cached_path).await?;
-                        //FIXME: will retry forever
-                    }
-                }
-            })
-        } else {
-            info!(log, "item is not cached, downloading now");
-            match t.uri() {
-                Ok(uri) => Box::pin(async move{
-                    manager.download(uri, cached_path.clone(), true, &log).await?;
-                    Ok(first_file_in_folder(cached_path)?)
-                }),
-                Err(e) => Box::pin(future::err(e)),
+        Box::pin(async move{
+            if !Self::is_cached(&t){
+                info!(log, "item is not cached, downloading now");
+                let uri = t.uri()?;
+                manager.download(uri, cached_path.clone(), true, &log).await?;
             }
-        }
+            if let Ok(path) = first_file_in_folder(&cached_path){
+                return Ok(path);
+            }else{
+                //invalidate cache
+                warn!(log, "Removing invalid cache folder {:?}", cached_path);
+                tokio::fs::remove_dir(&cached_path).await?;
+                //FIXME: will retry forever
+                //retry
+                Ok(Self::with(t, manager, log).await?)
+            }
+        })
     }
 }
 
@@ -112,20 +104,14 @@ impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FileCache {
         let cached_path = t.cached_path();
         let log = log.new(o!("cached_path"=>cached_path.as_path().to_string_lossy().into_owned()));
 
-        if Self::is_cached(&t) {
-            info!(log, "item was already cached");
-            Box::pin(future::ok(cached_path))
-        } else {
-            info!(log, "item is not cached, downloading now");
-            match t.uri() {
-                Ok(uri) => Box::pin(async move{
-                    manager.download(uri, cached_path.clone(), false, &log).await?;
-                    Ok(cached_path)
-                }
-                ),
-                Err(e) => Box::pin(future::err(e)),
+        Box::pin(async move{
+            if !Self::is_cached(&t) {
+                info!(log, "item is not cached, downloading now");
+                let uri = t.uri()?;
+                manager.download(uri, cached_path.clone(), false, &log).await?;
             }
-        }
+            Ok(cached_path)
+        })
     }
 }
 
