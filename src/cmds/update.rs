@@ -123,7 +123,6 @@ fn add_launcher_profile(
                                     "gameDir": pack_path,
                                     "lastVersionId": version_id.0,
                                     "type": "custom",
-                                    "updated": chrono::Local::now().to_rfc3339(),
                                     //TODO: icon?
                                 });
 
