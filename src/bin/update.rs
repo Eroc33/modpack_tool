@@ -19,7 +19,7 @@ use sentry;
 use failure::*;
 
 use modpack_tool::Result;
-use modpack_tool::types::*;
+use modpack_tool::mod_source::ModpackConfig;
 
 use slog::{Drain, Logger};
 

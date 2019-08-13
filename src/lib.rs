@@ -27,17 +27,15 @@ pub mod curseforge;
 pub mod download;
 pub mod util;
 pub mod maven;
-pub mod types;
+pub mod mod_source;
 pub mod forge_version;
 pub mod hash_writer;
 pub mod hacks;
 pub mod cmds;
 pub mod async_json;
-pub mod curseforge_api;
+pub mod mc_libs;
 
 pub use download::Downloadable;
-
-pub use types::*;
 
 #[derive(Debug, Fail)]
 pub enum Error {

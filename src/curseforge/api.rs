@@ -8,9 +8,8 @@ use std::{
 };
 use http::Uri;
 use crate::{
-    curseforge,
     download::HttpSimple,
-    types::ReleaseStatus,
+    curseforge::{self,ReleaseStatus},
 };
 
 trait SelectExt{

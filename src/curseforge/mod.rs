@@ -3,6 +3,10 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use crate::download;
 
+pub mod api;
+mod release_status;
+pub use release_status::*;
+
 const CACHE_DIR: &str = "./curse_cache/";
 
 pub fn parse_modid_from_url(url: &str) -> Result<String,crate::Error>{
@@ -77,8 +81,8 @@ impl crate::cache::Cacheable for Mod {
         Ok(Uri::from_str(&loc)?)
     }
 }
-impl Into<crate::types::ModSource> for Mod {
-    fn into(self) -> crate::types::ModSource {
-        crate::types::ModSource::CurseforgeMod(self)
+impl Into<crate::mod_source::ModSource> for Mod {
+    fn into(self) -> crate::mod_source::ModSource {
+        crate::mod_source::ModSource::CurseforgeMod(self)
     }
 }

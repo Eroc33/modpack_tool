@@ -15,9 +15,9 @@ use crate::{
     download::{self, DownloadMulti},
     hacks,
     maven,
-    types::*,
     cache::Cacheable,
     util,
+    mod_source::{ModpackConfig,ModList},
 };
 use indicatif::{MultiProgress,ProgressBar,ProgressStyle};
 use std::sync::Arc;

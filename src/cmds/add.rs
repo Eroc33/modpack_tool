@@ -7,7 +7,7 @@ pub fn add<P>(pack_path: P, mod_url: String) -> impl Future<Output=Result<(),cra
 where
     P: Into<PathBuf> + 'static,
 {
-    use crate::types::ModpackConfig;
+    use crate::mod_source::ModpackConfig;
 
     super::replace(pack_path, |mut file| {
         async move{

@@ -1,6 +1,5 @@
 use kuchiki;
 use futures;
-use regex;
 use semver;
 use termcolor;
 use std;
@@ -15,8 +14,8 @@ use kuchiki::{
 };
 use crate::{
     download::HttpSimple,
-    types::ReleaseStatus,
-    ModList,
+    curseforge::ReleaseStatus,
+    mod_source::ModList,
 };
 use std::{
     io::Write,
@@ -263,7 +262,7 @@ fn find_most_recent(
     http_client: HttpSimple,
     target_release_status: ReleaseStatus,
 ) -> impl Future<Output=Result<Option<ModVersionInfo>,crate::Error>> + Send {
-    let mut stream = Box::pin(crate::curseforge_api::all_for_version(curse_mod, http_client, target_game_version).try_filter(move |release_info| {
+    let mut stream = Box::pin(crate::curseforge::api::all_for_version(curse_mod, http_client, target_game_version).try_filter(move |release_info| {
         futures::future::ready(
             target_release_status.accepts(release_info.release_status)
                 //already filtering by this on get
@@ -285,7 +284,7 @@ fn find_most_recent(
 }
 
 use crate::curseforge;
-use crate::types::{ModSource, ModpackConfig};
+use crate::mod_source::{ModSource, ModpackConfig};
 
 pub fn new_version(
     target_game_version: semver::VersionReq,
