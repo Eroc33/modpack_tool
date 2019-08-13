@@ -145,7 +145,7 @@ fn add_launcher_profile(
                 launcher_profiles
             };
             let mut out_file = tokio::fs::File::create(mc_path).await?;
-            crate::async_json::write(&mut out_file, &launcher_profiles).await?;
+            crate::async_json::write_pretty(&mut out_file, &launcher_profiles).await?;
             progress.finish_with_message("Done");
             Ok(())
         }
