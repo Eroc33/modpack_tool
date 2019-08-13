@@ -9,6 +9,7 @@ use slog::Logger;
 use std::io::{Cursor};
 use std::path::PathBuf;
 use semver;
+use failure::{Fail,ResultExt};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum ReleaseStatus {
@@ -277,6 +278,13 @@ impl MCVersionInfo {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
+enum IndirectableModpack{
+    Real(ModpackConfig),
+    Indirected(String),
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ModpackConfig {
     pub version: semver::VersionReq,
@@ -334,5 +342,22 @@ impl ModpackConfig {
         let modsource: ModSource = curseforge::Mod::from_url(mod_url)?.into();
         self.replace_mod(modsource);
         Ok(())
+    }
+    pub async fn load_maybe_indirected(file: &mut tokio::fs::File) -> Result<ModpackConfig,crate::Error>{
+        let indirectable: IndirectableModpack = crate::async_json::read(file).await.context(format!("not a valid (indirectable) modpack config"))?;
+        match indirectable{
+            IndirectableModpack::Indirected(uri_str) => {
+                let uri = Uri::from_str(&uri_str)?;
+                let (res,url) = crate::download::HttpSimple::new()
+                    .get_following_redirects(uri)?
+                    .map_err(crate::Error::from)
+                    .await?;
+                let data = res
+                    .into_body()
+                    .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
+                Ok(serde_json::from_reader(std::io::Cursor::new(data))?)
+            },
+            IndirectableModpack::Real(modpack) => Ok(modpack),
+        }
     }
 }

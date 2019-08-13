@@ -47,7 +47,7 @@ pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()
             mprog_runner.join().unwrap();
         });
         let mut file = tokio::fs::File::open(path.clone()).await.context(format!("{:?} is not a file",&path))?;
-        let pack: ModpackConfig = crate::async_json::read(&mut file).await.context(format!("{:?} is not a valid modpack config",&path))?;
+        let pack = ModpackConfig::load_maybe_indirected(&mut file).await?;
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());
