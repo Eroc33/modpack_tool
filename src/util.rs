@@ -69,18 +69,6 @@ where
     Ok(())
 }
 
-pub async fn save_file<R>(
-    mut reader: R,
-    path: PathBuf,
-) -> download::Result<u64>
-where
-    R: AsyncRead + Send + Unpin,
-{
-    let mut file = tokio::fs::File::create(path).await?;
-
-    Ok(reader.copy(&mut file).await?)
-}
-
 pub fn file_timestamp<P: AsRef<Path>>(path: P) -> download::Result<DateTime<Utc>> {
     let metadata = path.as_ref().metadata()?;
     Ok(metadata.modified()?.into())
