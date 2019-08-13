@@ -117,12 +117,14 @@ fn add_launcher_profile(
                         .as_object_mut()
                         .expect("profiles is not an object");
 
-                    //debug!(log,"Read profiles key"; "profiles"=> ?profiles, "key"=>pack_name.as_str());
 
                     let always_set = json!({
                                     "name": pack_name,
                                     "gameDir": pack_path,
-                                    "lastVersionId": version_id.0
+                                    "lastVersionId": version_id.0,
+                                    "type": "custom",
+                                    "updated": chrono::Local::now().to_rfc3339(),
+                                    //TODO: icon?
                                 });
 
                     match profiles.entry(pack_name.as_str()) {
@@ -133,7 +135,8 @@ fn add_launcher_profile(
                         Entry::Vacant(empty) => {
                             // bump the memory higher than the mojang default if this is our initial creation
                             let mut to_set = json!({
-                                "javaArgs": "-Xms2G -Xmx2G"
+                                "javaArgs": "-Xms2G -Xmx2G",
+                                "created": chrono::Local::now().to_rfc3339(),
                             });
                             merge(&mut to_set, &always_set);
                             empty.insert(to_set);
