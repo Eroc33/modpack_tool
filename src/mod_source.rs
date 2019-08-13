@@ -13,7 +13,7 @@ use std::{
     str::FromStr,
 };
 use semver;
-use failure::{Fail,ResultExt};
+use failure::{ResultExt};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ModSource {
@@ -139,7 +139,7 @@ impl ModpackConfig {
         match indirectable{
             IndirectableModpack::Indirected(uri_str) => {
                 let uri = Uri::from_str(&uri_str)?;
-                let (res,url) = crate::download::HttpSimple::new()
+                let (res,_url) = crate::download::HttpSimple::new()
                     .get_following_redirects(uri)?
                     .map_err(crate::Error::from)
                     .await?;

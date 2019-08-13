@@ -283,9 +283,7 @@ async fn page_for_version(
         let release_status =
             row.select("td").nth(0).unwrap().select_first("span").text_contents();
         let files_cell = row.select("td").nth(1).unwrap();
-        let file_name = files_cell.text_contents();
         let version = parse_files_url(&files_cell.select_first("a").get_attr("href").expect("missing link to file shouldn't be possible"))?;
-        let primary_file = format!("https://www.curseforge.com/minecraft/mc-mods/{}/download/{}/file",curse_mod.id,version);
 
         mods.push(ReleaseInfo{release_status: ReleaseStatus::parse_short(&release_status).expect("Bad release status"),modd:curseforge::Mod{version,id: curse_mod.id.clone()}});
     }

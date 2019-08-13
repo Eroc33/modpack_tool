@@ -225,37 +225,6 @@ impl SelectExt for NodeDataRef<ElementData>{
     }
 }
 
-fn curseforge_ver_to_semver<S>(version: S) -> semver::Version
-    where S: Into<String>
-{
-    let version = version.into();
-    println!("version: {:?}",version);
-    //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
-    let version = if version.chars().filter(|&c| c=='.').count() == 1 {
-        version + ".0"
-    }else{
-        version
-    };
-    println!("version: {:?}",version);
-    semver::Version::parse(version.as_str()).expect("Bad version from curseforge.com")
-}
-
-fn parse_files_url(url: &str) -> Result<u64,crate::Error>{
-    use std::str::FromStr;
-    complete!(
-            &url,
-            do_parse!(
-                tag_s!("/minecraft/mc-mods/") >>
-                _id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/") >>
-                version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
-                (version)
-            )
-        ).to_full_result()
-        .map_err(|_| crate::Error::BadModUrl {
-            url: url.to_owned(),
-        })
-}
-
 fn find_most_recent(
     curse_mod: curseforge::Mod,
     target_game_version: semver::VersionReq,
