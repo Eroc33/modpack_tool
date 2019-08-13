@@ -29,7 +29,6 @@ pub mod util;
 pub mod maven;
 pub mod mod_source;
 pub mod forge_version;
-pub mod hash_writer;
 pub mod hacks;
 pub mod cmds;
 pub mod async_json;

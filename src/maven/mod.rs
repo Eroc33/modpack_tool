@@ -11,9 +11,10 @@ use crate::{
     util,
     cache::{self, Cacheable, Cache as _},
     download,
-    hash_writer::HashWriter,
 };
 use tokio::io::AsyncReadExt;
+mod hash_writer;
+use hash_writer::HashWriter;
 
 const CACHE_DIR: &str = "./mvn_cache/";
 
