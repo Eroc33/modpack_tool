@@ -188,15 +188,15 @@ async fn async_main() -> Result<()> {
 
     let root = Logger::root(
         Arc::new(Mutex::new(
-            slog::Duplicate::new(slog_stdlog::StdLog.filter_level(slog::Level::Warning),
-                slog::Duplicate::new(slog_term::term_compact().filter_level(slog::Level::Error), log_file_stream)).fuse(),
+            /*slog::Duplicate::new(slog_stdlog::StdLog.filter_level(slog::Level::Warning),
+                slog::Duplicate::new(slog_term::term_compact().filter_level(slog::Level::Error), */log_file_stream/*))*/.fuse(),
         )).ignore_res(),
         o!(),
     );
     let log = root.new(o!());
 
     if let Err(e) = run_command(matches, log).await {
-        println!("Reporting error to sentry");
+        println!("Reporting error to sentry: {:?}", e);
         sentry::integrations::failure::capture_fail(&e);
     }
     Ok(())

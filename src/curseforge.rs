@@ -9,7 +9,7 @@ pub fn parse_modid_from_url(url: &str) -> Result<String,crate::Error>{
     complete!(
         url,
         do_parse!(
-            tag_s!("https://minecraft.curseforge.com/projects/") >>
+            tag_s!("https://www.curseforge.com/minecraft/mc-mods/") >>
             id: take_till_s!(|c: char| c == '/') >> 
             (id.to_owned())
         )
@@ -29,7 +29,12 @@ pub type Cache = crate::cache::FolderCache;
 
 impl Mod {
     pub fn project_uri(&self) -> Result<Uri, http::uri::InvalidUri> {
-        let loc = format!("https://minecraft.curseforge.com/projects/{}/", self.id);
+        let loc = format!("https://www.curseforge.com/minecraft/mc-mods/{}/", self.id);
+        Ok(Uri::from_str(&loc)?)
+    }
+
+    pub fn files_uri(&self) -> Result<Uri, http::uri::InvalidUri> {
+        let loc = format!("https://www.curseforge.com/minecraft/mc-mods/{}/files",self.id);
         Ok(Uri::from_str(&loc)?)
     }
 
@@ -37,10 +42,10 @@ impl Mod {
         complete!(
             &url,
             do_parse!(
-                tag_s!("https://minecraft.curseforge.com/projects/") >>
-                id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/") >>
+                tag_s!("https://www.curseforge.com/minecraft/mc-mods/") >>
+                id: take_till_s!(|c: char| c == '/') >> tag_s!("/download/") >>
                 version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
-                opt!(tag_s!("/download")) >>
+                opt!(tag_s!("/file")) >>
                 (Self {
                     id: id.to_owned(),
                     version,

@@ -34,6 +34,7 @@ fn spinner_style() -> ProgressStyle{
 
 pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()>> {
     let mprog = Arc::new(MultiProgress::new());
+    mprog.set_draw_target(indicatif::ProgressDrawTarget::to_term(console::Term::stdout(), None));
     let download_manager = download::Manager::new();
 
     let mprog_runner = mprog.clone();
@@ -103,8 +104,8 @@ fn add_launcher_profile(
         async move{
             let mut profiles_file = tokio::fs::File::open(mc_path.clone()).await?;
             let launcher_profiles = {
-                progress.inc(1);
                 progress.set_message("loaded profile json");
+                progress.inc(1);
                 let mut launcher_profiles: Value = crate::async_json::read(&mut profiles_file).await?;
 
                 {
@@ -139,8 +140,8 @@ fn add_launcher_profile(
                         }
                     }
                 }
-                progress.inc(1);
                 progress.set_message("Saving new profiles json");
+                progress.inc(1);
                 launcher_profiles
             };
             let mut out_file = tokio::fs::File::create(mc_path).await?;

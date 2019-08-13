@@ -36,6 +36,15 @@ impl ReleaseStatus {
             Self::Alpha => Self::Beta.accepts(other),
         }
     }
+
+    pub fn parse_short(s: &str) -> Result<Self, UnknownVariant>{
+        match s {
+            "R" => Ok(Self::Release),
+            "B" => Ok(Self::Beta),
+            "A" => Ok(Self::Alpha),
+            s => Err(UnknownVariant(s.to_string())),
+        }
+    }
 }
 
 impl FromStr for ReleaseStatus {

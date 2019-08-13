@@ -33,6 +33,7 @@ pub mod hash_writer;
 pub mod hacks;
 pub mod cmds;
 pub mod async_json;
+pub mod curseforge_api;
 
 pub use download::Downloadable;
 

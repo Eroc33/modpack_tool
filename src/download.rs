@@ -90,10 +90,10 @@ impl<D: Downloadable + Send + 'static> DownloadMulti for Vec<D> {
         progress.set_length(self.len() as u64);
         Box::pin(
             future::try_join_all(
-                self.into_iter()
-                    .map(move |d| {
+                self.into_iter().enumerate()
+                    .map(move |(i,d)| {
                         let progress = progress.clone();
-                        d.download(location.clone(), manager.clone(), log.clone()).map_ok(move |_| progress.inc(1))
+                        d.download(location.clone(), manager.clone(), log.clone()).map_ok(move |_| {progress.set_message(format!("Item {}",i).as_str());progress.inc(1)})
                     }),
             ).map_ok(|_| ()),
         )

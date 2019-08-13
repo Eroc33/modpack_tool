@@ -3,8 +3,6 @@ use futures;
 use regex;
 use semver;
 use termcolor;
-use selectors::Element;
-use selectors::attr::CaseSensitivity;
 use std;
 use nom;
 
@@ -14,7 +12,6 @@ use futures::{
 use kuchiki::{
     ElementData,
     NodeDataRef,
-    traits::TendrilSink,
 };
 use crate::{
     download::HttpSimple,
@@ -22,11 +19,10 @@ use crate::{
     ModList,
 };
 use std::{
-    io::{Cursor,Write},
+    io::Write,
     sync::Arc,
 };
 use url::Url;
-use regex::Regex;
 
 use termcolor::{ColorSpec, WriteColor, Color};
 
@@ -115,10 +111,8 @@ lazy_static! {
 #[derive(Debug)]
 struct ModVersionInfo {
     modd: curseforge::Mod,
-    file_name: String,
     download_url: Url,
     release_status: ReleaseStatus,
-    game_versions: Vec<semver::Version>,
 }
 
 #[derive(Debug,PartialEq, Eq)]
@@ -236,80 +230,57 @@ fn curseforge_ver_to_semver<S>(version: S) -> semver::Version
     where S: Into<String>
 {
     let version = version.into();
+    println!("version: {:?}",version);
     //this is an un-intelligent hack to fix mods with minecraft versions like 1.12 to match semver
     let version = if version.chars().filter(|&c| c=='.').count() == 1 {
         version + ".0"
     }else{
         version
     };
+    println!("version: {:?}",version);
     semver::Version::parse(version.as_str()).expect("Bad version from curseforge.com")
 }
 
+fn parse_files_url(url: &str) -> Result<u64,crate::Error>{
+    use std::str::FromStr;
+    complete!(
+            &url,
+            do_parse!(
+                tag_s!("/minecraft/mc-mods/") >>
+                _id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/") >>
+                version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
+                (version)
+            )
+        ).to_full_result()
+        .map_err(|_| crate::Error::BadModUrl {
+            url: url.to_owned(),
+        })
+}
+
 fn find_most_recent(
-    project_name: &str,
+    curse_mod: curseforge::Mod,
     target_game_version: semver::VersionReq,
     http_client: HttpSimple,
     target_release_status: ReleaseStatus,
 ) -> impl Future<Output=Result<Option<ModVersionInfo>,crate::Error>> + Send {
-    lazy_static! {
-        static ref TITLE_REGEX: Regex = regex::Regex::new("(<div>)|(</div><div>)|(</div>)")
-            .expect("Couldn't compile pre-checked regex");
-    }
-
-    const BASE_URL: &str = "https://minecraft.curseforge.com";
-    let base_url = Url::parse(BASE_URL).unwrap();
-    let scrape_url = base_url
-        .join(&format!("/projects/{}/files", project_name))
-        .unwrap();
+    let mut stream = Box::pin(crate::curseforge_api::all_for_version(curse_mod, http_client, target_game_version).try_filter(move |release_info| {
+        futures::future::ready(
+            target_release_status.accepts(release_info.release_status)
+                //already filtering by this on get
+                //&& game_versions.iter().any(|ver| target_game_version.matches(ver))
+        )
+    }));
     async move{
-        let uri = crate::util::url_to_uri(&scrape_url)?;
-        let body = http_client.get(uri)
-                .map_err(crate::Error::from)
-                .await?
-                .into_body()
-                .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
-        let doc = kuchiki::parse_html()
-            .from_utf8()
-            .read_from(&mut Cursor::new(body))
-            .unwrap();
-        let rows = doc.select("table.project-file-listing tbody tr")
-            .map_err(|_| crate::Error::Selector)?;
-        for row in rows {
-            let release_status =
-                row.select_first(".project-file-release-type div").get_attr("title");
-            let files_cell = row.select_first(".project-file-name div");
-            let file_name = files_cell.select_first(".project-file-name-container .overflow-tip").text_contents();
-            let primary_file = files_cell.select_first(".project-file-download-button a").get_attr("href");
-            let version_container = row.select_first(".project-file-game-version");
-            let mut game_versions: Vec<semver::Version> = vec![];
-            if version_container.has_class(&("multiple".into()),CaseSensitivity::CaseSensitive){
-                let additional_versions = version_container.select_first(".additional-versions");
-                if let Some(title) = additional_versions.get_attr("title"){
-                    for version in TITLE_REGEX.split(title.as_str()){
-                        if !(version.is_empty() || version.starts_with("Java") || version.starts_with("java")){
-                            game_versions.push(curseforge_ver_to_semver(version));
-                        }
-                    }
-                }
-            }
-            let primary_game_version = row.select_first(".project-file-game-version .version-label").text_contents();
-            game_versions.push(curseforge_ver_to_semver(primary_game_version));
-
-            let release_status =
-            release_status.map(|status| status.parse().expect("Invalid ReleaseStatus"));
-
-            if release_status.map_or(false, |status| target_release_status.accepts(status)) && game_versions.iter().any(|ver| target_game_version.matches(ver)){
-                let file_url = primary_file.map(|s| base_url.join(&s).unwrap()).unwrap();
-                return Ok(Some(ModVersionInfo {
-                    modd: curseforge::Mod::from_url(file_url.as_str())?,
-                    file_name,
-                    download_url: file_url,
-                    release_status: release_status.unwrap(),
-                    game_versions,
-                }));
-            }
-        }
-        Ok(None)
+        Ok(if let Some(release_info) = stream.try_next().await?{
+            let url = Url::parse(&format!("https://www.curseforge.com/minecraft/mc-mods/{}/download/{}/file",release_info.modd.id,release_info.modd.version)).expect("bad prechecked url");
+            Some(ModVersionInfo {
+                modd: release_info.modd,
+                download_url: url,
+                release_status: release_info.release_status,
+            })
+        }else{
+            None
+        })
     }
 }
 
@@ -330,7 +301,7 @@ pub fn new_version(
             async move{
                 match modd{
                     ModSource::CurseforgeMod(curse_mod) => {
-                        let found = find_most_recent(&curse_mod.id,
+                        let found = find_most_recent(curse_mod.clone(),
                                             target_game_version,
                                             http_client_handle,
                                             ReleaseStatus::Alpha).await?;
@@ -470,7 +441,7 @@ pub fn same_version(
         for modd in old_mods{
             let updated = match modd {
                 ModSource::CurseforgeMod(curse_mod) => {
-                    let found = find_most_recent(&curse_mod.id,
+                    let found = find_most_recent(curse_mod.clone(),
                                             target_game_version.clone(),
                                             http_client.clone(),
                                             release_status).await?;
@@ -481,7 +452,7 @@ pub fn same_version(
                                 curse_mod.id,
                                 curse_mod.version,
                                 found.modd.version,
-                                found.file_name);
+                                found.download_url);
                             if prompt_yes_no(&prompt,Response::Yes) == Response::Yes {
                                 Some(found.modd.into())
                             } else {
