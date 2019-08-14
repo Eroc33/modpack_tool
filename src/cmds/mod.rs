@@ -1,8 +1,6 @@
 mod update;
-mod add;
-pub mod upgrade;
+pub mod dev;
 pub use self::update::*;
-pub use self::add::*;
 
 use futures::prelude::*;
 use tokio;

@@ -9,7 +9,7 @@ where
 {
     use crate::mod_source::ModpackConfig;
 
-    super::replace(pack_path, |mut file| {
+    crate::cmds::replace(pack_path, |mut file| {
         async move{
             let mut pack: ModpackConfig = crate::async_json::read(&mut file).await.expect("pack file missing, or in bad format");
 
