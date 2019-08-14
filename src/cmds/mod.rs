@@ -6,6 +6,8 @@ use futures::prelude::*;
 use tokio;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use crate::mod_source::ModpackConfig;
+use failure::ResultExt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "modpacktool-update", version = "0.1", author = "E. Rochester <euan@rochester.me.uk>")]
@@ -20,7 +22,17 @@ impl Args{
     {
         match self{
             Args::Update(update_args) => {
-                update_args.dispatch(log).await
+                if !update_args.pack_file.exists(){
+                    eprintln!("{:?} is not an accesible path",update_args.pack_file);
+                    Ok(())
+                } else if !update_args.pack_file.is_file(){
+                    eprintln!("No file exists at the path {:?}",update_args.pack_file);
+                    Ok(())
+                }else{
+                    let mut file = tokio::fs::File::open(update_args.pack_file.clone()).await.context(format!("{:?} is not a file",&update_args.pack_file))?;
+                    let pack = ModpackConfig::load_maybe_indirected(&mut file).await?;
+                    update(pack,log).await
+                }
             }
             Args::Dev(dev_args) => {
                 dev_args.dispatch(log).await

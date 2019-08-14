@@ -8,7 +8,6 @@ use serde_json::{self, Value};
 use tokio;
 use std;
 use zip;
-use failure::*;
 use structopt::StructOpt;
 
 use crate::{
@@ -40,27 +39,7 @@ pub struct Args{
     pub pack_file: PathBuf,
 }
 
-impl Args{
-    pub async fn dispatch(self, log: Logger) -> crate::Result<()>
-    {
-        if !self.pack_file.exists(){
-            eprintln!("{:?} is not an accesible path",self.pack_file);
-            Ok(())
-        } else if !self.pack_file.is_file(){
-            eprintln!("No file exists at the path {:?}",self.pack_file);
-            Ok(())
-        }else{
-            update(
-                self,
-                log.clone(),
-            ).await
-        }
-    }
-}
-
-pub fn update(args: Args, log: Logger) -> impl Future<Output=crate::Result<()>> {
-
-    let Args{pack_file} = args;
+pub fn update(pack: ModpackConfig, log: Logger) -> impl Future<Output=crate::Result<()>> {
 
     let mprog = Arc::new(MultiProgress::new());
     mprog.set_draw_target(indicatif::ProgressDrawTarget::to_term(console::Term::stdout(), None));
@@ -74,9 +53,7 @@ pub fn update(args: Args, log: Logger) -> impl Future<Output=crate::Result<()>> 
         progress.set_style(bar_style());
         let t_handle = std::thread::spawn(move ||{
             mprog_runner.join().unwrap();
-        });
-        let mut file = tokio::fs::File::open(pack_file.clone()).await.context(format!("{:?} is not a file",&pack_file))?;
-        let pack = ModpackConfig::load_maybe_indirected(&mut file).await?;
+        });        
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());

@@ -125,7 +125,7 @@ pub async fn symlink<P: AsRef<Path> + Debug + Unpin + Send + Clone + 'static, Q:
     }
 }
 
-async fn fs_copy<P: AsRef<Path> + Unpin + Send + 'static, Q: AsRef<Path>+ Unpin + Send + 'static>(src: P, dst: Q) -> io::Result<()> {
+pub async fn fs_copy<P: AsRef<Path> + Unpin + Send + 'static, Q: AsRef<Path>+ Unpin + Send + 'static>(src: P, dst: Q) -> io::Result<()> {
     let src_open = tokio::fs::File::open(src);
     let dst_open = tokio::fs::File::create(dst);
     let (mut src,mut dst) = futures::try_join!(

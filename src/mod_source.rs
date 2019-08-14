@@ -71,9 +71,28 @@ pub type ModList = Vec<ModSource>;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
-enum IndirectableModpack{
+pub enum IndirectableModpack{
     Real(ModpackConfig),
     Indirected(String),
+}
+
+impl IndirectableModpack{
+    pub async fn resolve(self) -> Result<ModpackConfig,crate::Error>{
+        match self{
+            IndirectableModpack::Indirected(uri_str) => {
+                let uri = Uri::from_str(&uri_str)?;
+                let (res,_url) = crate::download::HttpSimple::new()
+                    .get_following_redirects(uri)?
+                    .map_err(crate::Error::from)
+                    .await?;
+                let data = res
+                    .into_body()
+                    .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
+                Ok(serde_json::from_reader(std::io::Cursor::new(data))?)
+            },
+            IndirectableModpack::Real(modpack) => Ok(modpack),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -137,19 +156,6 @@ impl ModpackConfig {
     }
     pub async fn load_maybe_indirected(file: &mut tokio::fs::File) -> Result<ModpackConfig,crate::Error>{
         let indirectable: IndirectableModpack = crate::async_json::read(file).await.context(format!("not a valid (indirectable) modpack config"))?;
-        match indirectable{
-            IndirectableModpack::Indirected(uri_str) => {
-                let uri = Uri::from_str(&uri_str)?;
-                let (res,_url) = crate::download::HttpSimple::new()
-                    .get_following_redirects(uri)?
-                    .map_err(crate::Error::from)
-                    .await?;
-                let data = res
-                    .into_body()
-                    .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
-                Ok(serde_json::from_reader(std::io::Cursor::new(data))?)
-            },
-            IndirectableModpack::Real(modpack) => Ok(modpack),
-        }
+        Ok(indirectable.resolve().await?)
     }
 }

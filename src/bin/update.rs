@@ -15,18 +15,34 @@ use tokio;
 
 use sentry;
 
-use modpack_tool::Result;
+use modpack_tool::{
+    Result,
+    mod_source::{ModpackConfig,IndirectableModpack},
+};
 
 use slog::{Drain, Logger};
 
 use std::sync::{Arc, Mutex};
+
+async fn load_hybrid_config() -> modpack_tool::Result<Option<ModpackConfig>>{
+    let own_path = std::env::args().nth(0).expect("arg 0 should always be available");
+    let file = tokio::fs::File::open(own_path).await?;
+    let mut zip_reader = match zip::read::ZipArchive::new(file.into_std()){
+        Err(zip::result::ZipError::InvalidArchive(_)) => {
+            return Ok(None);
+        }
+        other => other,
+    }?;
+    let indirected: IndirectableModpack = serde_json::from_reader(zip_reader.by_name("config.json")?)?;
+    Ok(Some(indirected.resolve().await?))
+}
 
 async fn async_main() -> Result<()> {
     let _sentry = sentry::init("https://0b0da309fa014d60b7b5e6a9da40529e@sentry.io/1207316");
     sentry::integrations::panic::register_panic_handler();
     let mut builder = env_logger::Builder::from_default_env();
     sentry::integrations::log::init(Some(Box::new(builder.build())), Default::default());
-    let command = modpack_tool::cmds::Args::from_args();
+    
 
     let log_path = "modpack_tool.log";
 
@@ -41,8 +57,13 @@ async fn async_main() -> Result<()> {
         o!(),
     );
     let log = root.new(o!());
-
-    if let Err(e) = command.dispatch(log).await {
+    let cmd_res = if let Ok(Some(pack)) = load_hybrid_config().await{
+        modpack_tool::cmds::update(pack,log).await
+    }else{
+        let command = modpack_tool::cmds::Args::from_args();
+        command.dispatch(log).await 
+    };
+    if let Err(e) = cmd_res {
         println!("Reporting error to sentry: {:?}", e);
         sentry::integrations::failure::capture_fail(&e);
     }
