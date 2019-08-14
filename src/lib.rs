@@ -120,6 +120,12 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<Context<&str>> for Error {
+    fn from(err: Context<&str>) -> Self {
+        Self::Report(err.map(|s| s.to_string()))
+    }
+}
+
 impl From<Context<String>> for Error {
     fn from(err: Context<String>) -> Self {
         Self::Report(err)

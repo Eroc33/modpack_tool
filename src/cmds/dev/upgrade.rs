@@ -473,7 +473,7 @@ pub async fn upgrade(args: Args) -> Result<(), crate::Error>{
 
     let mut file = std::fs::File::open(&pack_file)
         .context(format!("pack {} does not exist", pack_file))?;
-    let pack: ModpackConfig = serde_json::from_reader(&mut file).context("pack file in bad format".to_string())?;
+    let pack: ModpackConfig = serde_json::from_reader(&mut file).context("pack file in bad format")?;
 
     if let Some(ver) = mc_version{
         let ver = if ver.chars()

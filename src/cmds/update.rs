@@ -9,6 +9,7 @@ use tokio;
 use std;
 use zip;
 use structopt::StructOpt;
+use failure::ResultExt;
 
 use crate::{
     Result,
@@ -231,7 +232,7 @@ fn install_forge(
         let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await?;
 
         debug!(log, "Opening forge jar");
-        let mut zip_reader = zip::ZipArchive::new(reader.into_std())?;
+        let mut zip_reader = zip::ZipArchive::new(reader.into_std()).context("Forge jar file is not a valid zip")?;
         let version_id: String = {
             debug!(log, "Reading version json");
             let version_reader = zip_reader.by_name("version.json")?;
