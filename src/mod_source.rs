@@ -83,6 +83,7 @@ pub struct ModpackConfig {
     pub forge: String,
     pub auto_update_release_status: Option<curseforge::ReleaseStatus>,
     pub mods: ModList,
+    pub icon: Option<String>,
 }
 
 impl ModpackConfig {

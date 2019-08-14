@@ -51,7 +51,7 @@ pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
         pack_path.push(pack.folder());
-        let ModpackConfig { name: pack_name, mods, .. } = pack;
+        let ModpackConfig { name: pack_name, mods, icon, .. } = pack;
 
         let install_fut = install_forge(pack_path.clone(),
                             forge_maven_artifact,
@@ -64,7 +64,7 @@ pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()
             install_fut,
             download_mods_fut
         )?;
-        add_launcher_profile(&pack_path, pack_name, id, &log, progress)?.await?;
+        add_launcher_profile(&pack_path, pack_name, id, icon, &log, progress)?.await?;
         info!(log,"Done");
         t_handle.join().unwrap();
         Ok(())
@@ -86,6 +86,7 @@ fn add_launcher_profile(
     pack_path: &PathBuf,
     pack_name: String,
     version_id: VersionId,
+    icon: Option<String>,
     _log: &Logger,
     progress: ProgressBar,
 ) -> Result<impl Future<Output=Result<()>> + Send + 'static> {
@@ -118,13 +119,16 @@ fn add_launcher_profile(
                         .expect("profiles is not an object");
 
 
-                    let always_set = json!({
-                                    "name": pack_name,
-                                    "gameDir": pack_path,
-                                    "lastVersionId": version_id.0,
-                                    "type": "custom",
-                                    //TODO: icon?
-                                });
+                    let mut always_set = json!({
+                        "name": pack_name,
+                        "gameDir": pack_path,
+                        "lastVersionId": version_id.0,
+                        "type": "custom",
+                    });
+
+                    if let Some(icon) = icon{
+                        always_set["icon"] = json!(icon);
+                    }
 
                     match profiles.entry(pack_name.as_str()) {
                         Entry::Occupied(mut occupied) => {
