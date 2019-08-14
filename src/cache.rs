@@ -115,7 +115,7 @@ impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FileCache {
     }
 }
 
-//TODO: does it make more sense to implement cachable in terms of downloadable?
+//TODO: does it make more sense to implement cacheable in terms of downloadable?
 //      (i.e. opposite of what we're doing here)
 use download::Downloadable;
 

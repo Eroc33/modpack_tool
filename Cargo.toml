@@ -36,6 +36,7 @@ url = "1.4"
 zip = "0.2"
 console = "0.7.7"
 structopt = "0.2.18"
+app_dirs = "1.2.1"
 
 [dependencies.nom]
 features = ["regexp"]

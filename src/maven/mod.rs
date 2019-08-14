@@ -16,8 +16,6 @@ use tokio::io::AsyncReadExt;
 mod hash_writer;
 use hash_writer::HashWriter;
 
-const CACHE_DIR: &str = "./mvn_cache/";
-
 #[derive(Debug)]
 pub enum VerifyResult {
     Good,
@@ -46,7 +44,7 @@ impl Cacheable for ResolvedArtifact {
     type Cache = crate::cache::FileCache;
     fn cached_path(&self) -> PathBuf {
         let mut p = PathBuf::new();
-        p.push(CACHE_DIR);
+        p.push(app_dirs::app_dir(app_dirs::AppDataType::UserCache, crate::APP_INFO, "maven_cache").expect("Cache directory must be accesible"));
         p.push(&self.artifact.to_path());
         p
     }

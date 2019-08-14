@@ -7,8 +7,6 @@ pub mod api;
 mod release_status;
 pub use release_status::*;
 
-const CACHE_DIR: &str = "./curse_cache/";
-
 pub fn parse_modid_from_url(url: &str) -> Result<String,crate::Error>{
     complete!(
         url,
@@ -66,7 +64,7 @@ impl crate::cache::Cacheable for Mod {
     type Cache = crate::cache::FolderCache;
     fn cached_path(&self) -> PathBuf {
         let mut p = PathBuf::new();
-        p.push(CACHE_DIR);
+        p.push(app_dirs::app_dir(app_dirs::AppDataType::UserCache, crate::APP_INFO, "curse_cache").expect("Cache directory must be accesible"));
         p.push(self.id.clone());
         p.push(self.version.to_string());
         p

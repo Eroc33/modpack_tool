@@ -36,6 +36,11 @@ pub mod mc_libs;
 
 pub use download::Downloadable;
 
+pub const APP_INFO: &app_dirs::AppInfo = &app_dirs::AppInfo{
+    name: "Corrosive Modpack Tool",
+    author: "Euan Rochester",
+};
+
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "Download error: {}", _0)]
