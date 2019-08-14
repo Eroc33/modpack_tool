@@ -22,6 +22,8 @@ use std::{
     sync::Arc,
 };
 use url::Url;
+use structopt::StructOpt;
+use failure::ResultExt;
 
 use termcolor::{ColorSpec, WriteColor, Color};
 
@@ -255,7 +257,7 @@ fn find_most_recent(
 use crate::curseforge;
 use crate::mod_source::{ModSource, ModpackConfig};
 
-pub fn new_version(
+fn new_version(
     target_game_version: semver::VersionReq,
     pack_path: String,
     mut pack: ModpackConfig,
@@ -392,7 +394,7 @@ pub fn new_version(
     }
 }
 
-pub fn same_version(
+fn same_version(
     pack_path: String,
     mut pack: ModpackConfig,
     release_status: ReleaseStatus,
@@ -452,5 +454,59 @@ pub fn same_version(
         let mut file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
         crate::async_json::write_pretty(&mut file, &pack).await?;
         Ok(())
+    }
+}
+
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "upgrade", about = "Checks upgrade compatibility for this pack from one minecraft version to the next.")]
+pub struct Args{
+    /// The metadata json file for the pack you wish to modify
+    pack_file: String,
+    /// The minecraft version to upgrade to
+    mc_version: Option<String>,
+}
+
+pub async fn upgrade(args: Args) -> Result<(), crate::Error>{
+
+    let Args{pack_file, mc_version} = args;
+
+    let mut file = std::fs::File::open(&pack_file)
+        .context(format!("pack {} does not exist", pack_file))?;
+    let pack: ModpackConfig = serde_json::from_reader(&mut file).context("pack file in bad format".to_string())?;
+
+    if let Some(ver) = mc_version{
+        let ver = if ver.chars()
+        .next()
+        .expect("mc_version should not have length 0 due to arg parser")
+        .is_numeric()
+        {
+            //interpret a versionreq of x as ~x
+            println!("Interpreting version {} as ~{}", ver, ver);
+            format!("~{}", ver)
+        } else {
+            ver.to_owned()
+        };
+        let ver = semver::VersionReq::parse(ver.as_str()).context(format!(
+            "Second argument ({}) was not a semver version requirement",
+            ver
+        ))?;
+        new_version(
+            ver,
+            pack_file,
+            pack,
+        ).await
+    }else{
+        let release_status = pack.auto_update_release_status
+            .ok_or(crate::Error::AutoUpdateDisabled)
+            .context(format!(
+                "Pack {} has no auto_update_release_status",
+                pack_file
+            ))?;
+        same_version(
+            pack_file,
+            pack,
+            release_status,
+        ).await
     }
 }

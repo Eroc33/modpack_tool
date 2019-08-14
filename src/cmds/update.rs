@@ -9,6 +9,7 @@ use tokio;
 use std;
 use zip;
 use failure::*;
+use structopt::StructOpt;
 
 use crate::{
     Result,
@@ -32,7 +33,35 @@ fn spinner_style() -> ProgressStyle{
         .template("{spinner:.green} [{elapsed_precise}] {msg:!}")
 }
 
-pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()>> {
+#[derive(Debug, StructOpt)]
+#[structopt(name = "update", visible_alias = "install", about = "Updates the on-disk mods from the provided pack file.")]
+pub struct Args{
+    /// The metadata json file for the pack you wish to update
+    pub pack_file: PathBuf,
+}
+
+impl Args{
+    pub async fn dispatch(self, log: Logger) -> crate::Result<()>
+    {
+        if !self.pack_file.exists(){
+            eprintln!("{:?} is not an accesible path",self.pack_file);
+            Ok(())
+        } else if !self.pack_file.is_file(){
+            eprintln!("No file exists at the path {:?}",self.pack_file);
+            Ok(())
+        }else{
+            update(
+                self,
+                log.clone(),
+            ).await
+        }
+    }
+}
+
+pub fn update(args: Args, log: Logger) -> impl Future<Output=crate::Result<()>> {
+
+    let Args{pack_file} = args;
+
     let mprog = Arc::new(MultiProgress::new());
     mprog.set_draw_target(indicatif::ProgressDrawTarget::to_term(console::Term::stdout(), None));
     let download_manager = download::Manager::new();
@@ -46,7 +75,7 @@ pub fn update(path: PathBuf, log: Logger) -> impl Future<Output=crate::Result<()
         let t_handle = std::thread::spawn(move ||{
             mprog_runner.join().unwrap();
         });
-        let mut file = tokio::fs::File::open(path.clone()).await.context(format!("{:?} is not a file",&path))?;
+        let mut file = tokio::fs::File::open(pack_file.clone()).await.context(format!("{:?} is not a file",&pack_file))?;
         let pack = ModpackConfig::load_maybe_indirected(&mut file).await?;
         let mut pack_path = PathBuf::from(".");
         let forge_maven_artifact = pack.forge_maven_artifact()?;
