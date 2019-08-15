@@ -35,6 +35,8 @@ impl SelectExt for kuchiki::NodeDataRef<kuchiki::ElementData>{
     }
 }
 
+//TODO: fix this mess
+#[allow(unreachable_patterns)]
 fn mc_version_to_curseforge_id(s: &str) -> Option<&'static str>{
     std::dbg!(s);
     Some(match s{

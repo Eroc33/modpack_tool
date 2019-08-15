@@ -40,6 +40,23 @@ pub struct Args{
     pub pack_file: PathBuf,
 }
 
+impl Args{
+    pub async fn dispatch(self, log: slog::Logger) -> crate::Result<()>
+    {
+        if !self.pack_file.exists(){
+            eprintln!("{:?} is not an accesible path",self.pack_file);
+            Ok(())
+        } else if !self.pack_file.is_file(){
+            eprintln!("No file exists at the path {:?}",self.pack_file);
+            Ok(())
+        }else{
+            let mut file = tokio::fs::File::open(self.pack_file.clone()).await.context(format!("{:?} is not a file",&self.pack_file))?;
+            let pack = ModpackConfig::load_maybe_indirected(&mut file).await?;
+            update(pack,log).await
+        }
+    }
+}
+
 pub fn update(pack: ModpackConfig, log: Logger) -> impl Future<Output=crate::Result<()>> {
 
     let mprog = Arc::new(MultiProgress::new());
