@@ -41,8 +41,8 @@ pub enum Error {
     StdTime(#[cause] ::std::time::SystemTimeError),
     #[fail(display = "Got a redirect without a location header.")]
     MalformedRedirect,
-    #[fail(display = "A http client error occurred. Please check your pack.json is valid")]
-    HttpClient,
+    #[fail(display = "A http client error ({:?}) occurred while fetching {}. Please check your pack.json is valid",_0,_1)]
+    HttpClient(http::StatusCode,url::Url),
     #[fail(display = "A http server error occurred. Please try again later")]
     HttpServer,
     #[fail(display = "There was a problem with the cache.")]
@@ -288,6 +288,7 @@ fn get_url_filename(url: &Url) -> String {
 pub struct RedirectFollower {
     current_response: Option<Pin<Box<hyper::client::ResponseFuture>>>,
     current_location: Option<Url>,
+    starting_location: Url,
     client: HttpSimple,
     method: http::Method,
     headers: header::HeaderMap,
@@ -304,6 +305,7 @@ impl RedirectFollower {
         let version = request.version();
         Ok(Self {
             current_response: Some(Box::pin(client.request(request))),
+            starting_location: url.clone(),
             current_location: Some(url),
             client,
             method,
@@ -346,7 +348,7 @@ impl Future for RedirectFollower {
                             *current_location = next_url;
                         }
                         status if status.is_client_error() => {
-                            break Poll::Ready(Err(Error::HttpClient));
+                            break Poll::Ready(Err(Error::HttpClient(status,this.starting_location.clone())));
                         }
                         status if status.is_server_error() => {
                             break Poll::Ready(Err(Error::HttpServer));
