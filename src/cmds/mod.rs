@@ -12,7 +12,7 @@ use structopt::StructOpt;
 pub enum Args{
     #[structopt(name="dev")]
     Dev(dev::Args),
-    #[structopt(name="update")]
+    #[structopt(name="update", visible_alias = "install")]
     Update(update::Args),
 }
 impl Args{
