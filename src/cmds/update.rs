@@ -34,7 +34,7 @@ fn spinner_style() -> ProgressStyle{
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "update", visible_alias = "install", about = "Updates the on-disk mods from the provided pack file.")]
+#[structopt(name = "update", about = "Updates the on-disk mods from the provided pack file.")]
 pub struct Args{
     /// The metadata json file for the pack you wish to update
     pub pack_file: PathBuf,
@@ -246,7 +246,7 @@ fn install_forge(
         trace!(log,"Created pack folder");
 
         let forge_maven_artifact_path = forge_artifact.to_path();
-        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await?;
+        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await.context(format!("Error while getting forge artifact (version: {})",forge_artifact.artifact.version))?;
 
         debug!(log, "Opening forge jar");
         let mut zip_reader = zip::ZipArchive::new(reader.into_std()).context("Forge jar file is not a valid zip")?;
