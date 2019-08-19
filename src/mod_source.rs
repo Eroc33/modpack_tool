@@ -155,7 +155,7 @@ impl ModpackConfig {
         Ok(())
     }
     pub async fn load_maybe_indirected(file: &mut tokio::fs::File) -> Result<ModpackConfig,crate::Error>{
-        let indirectable: IndirectableModpack = crate::async_json::read(file).await.context(format!("not a valid (indirectable) modpack config"))?;
+        let indirectable: IndirectableModpack = crate::async_json::read(file).await.context("not a valid (indirectable) modpack config")?;
         Ok(indirectable.resolve().await?)
     }
 }

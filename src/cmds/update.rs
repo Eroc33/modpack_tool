@@ -204,7 +204,7 @@ fn download_modlist(
 
         progress.set_prefix("Removing old mod files");
 
-        for entry in entry_stream.try_next().await? {
+        while let Some(entry) = entry_stream.try_next().await? {
             progress.inc(1);
             progress.set_message(format!("Removing: {}",entry.path().to_str().unwrap()).as_str());
             tokio::fs::remove_file(entry.path().clone()).await?;

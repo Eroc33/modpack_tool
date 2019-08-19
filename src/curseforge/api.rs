@@ -1,6 +1,6 @@
 use futures::{
     prelude::*,
-    Stream,StreamExt,
+    Stream,
 };
 use std::{
     str::FromStr,
