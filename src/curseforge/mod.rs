@@ -8,17 +8,20 @@ mod release_status;
 pub use release_status::*;
 
 pub fn parse_modid_from_url(url: &str) -> Result<String,crate::Error>{
-    complete!(
-        url,
-        do_parse!(
-            tag_s!("https://www.curseforge.com/minecraft/mc-mods/") >>
-            id: take_till_s!(|c: char| c == '/') >> 
-            (id.to_owned())
-        )
-    ).to_full_result()
-    .map_err(|_| crate::Error::BadModUrl {
-        url: url.to_owned(),
-    })
+    use nom::bytes::complete::*;
+
+    fn error<'a, I>(url: &'a str) -> impl (Fn(nom::Err<(I,nom::error::ErrorKind)>) -> crate::Error) + 'a{
+        move |_|{
+            crate::Error::BadModUrl {
+                url: url.to_owned(),
+            }
+        }
+    }
+
+    let (rest,_tag) = tag("https://www.curseforge.com/minecraft/mc-mods/")(url).map_err(error(url))?;
+    let (_rest, id) = take_till(|c: char| c == '/')(rest).map_err(error(url))?;
+
+    Ok(id.to_string())
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -41,21 +44,27 @@ impl Mod {
     }
 
     pub fn from_url(url: &str) -> crate::Result<Self>{
-        complete!(
-            &url,
-            do_parse!(
-                tag_s!("https://www.curseforge.com/minecraft/mc-mods/") >>
-                id: take_till_s!(|c: char| c == '/') >> tag_s!("/download/") >>
-                version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
-                opt!(tag_s!("/file")) >>
-                (Self {
-                    id: id.to_owned(),
-                    version,
-                })
-            )
-        ).to_full_result()
-        .map_err(|_| crate::Error::BadModUrl {
-            url: url.to_owned(),
+        use nom::bytes::complete::*;
+        use nom::branch::*;
+        use nom::combinator::*;
+
+        fn error<'a, I>(url: &'a str) -> impl (Fn(nom::Err<(I,nom::error::ErrorKind)>) -> crate::Error) + 'a{
+            move |_|{
+                crate::Error::BadModUrl {
+                    url: url.to_owned(),
+                }
+            }
+        }
+
+        let (rest,_tag) = tag("https://www.curseforge.com/minecraft/mc-mods/")(url).map_err(error(url))?;
+        let (rest,id) = take_till(|c: char| c == '/')(rest).map_err(error(url))?;
+        let (rest,_tag) = alt((tag("/download/"),tag("/files/")))(rest).map_err(error(url))?;
+        let (rest,version) = map_res(take_while(|c: char| c.is_digit(10)), u64::from_str)(rest).map_err(error(url))?;
+        let (_rest,_tag) = opt(tag("/file"))(rest).map_err(error(url))?;
+
+        Ok(Self{
+            id: id.to_owned(),
+            version,
         })
     }
 }

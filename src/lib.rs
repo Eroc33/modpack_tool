@@ -15,9 +15,6 @@ use hyper;
 extern crate slog;
 use zip;
 #[macro_use]
-extern crate nom;
-use regex;
-#[macro_use]
 extern crate lazy_static;
 
 use failure::Context;

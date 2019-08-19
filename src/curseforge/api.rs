@@ -181,18 +181,24 @@ fn mc_version_to_curseforge_id(s: &str) -> Option<&'static str>{
 }
 
 fn parse_files_url(url: &str) -> Result<u64,crate::Error>{
-    complete!(
-            &url,
-            do_parse!(
-                tag_s!("/minecraft/mc-mods/") >>
-                _id: take_till_s!(|c: char| c == '/') >> tag_s!("/files/") >>
-                version: map_res!(take_while_s!(|c: char| c.is_digit(10)), u64::from_str) >>
-                (version)
-            )
-        ).to_full_result()
-        .map_err(|_| crate::Error::BadModUrl {
-            url: url.to_owned(),
-        })
+    use nom::bytes::complete::*;
+    use nom::combinator::*;
+
+    fn error<'a, I>(url: &'a str) -> impl (Fn(nom::Err<(I,nom::error::ErrorKind)>) -> crate::Error) + 'a{
+        move |_|{
+            crate::Error::BadModUrl {
+                url: url.to_owned(),
+            }
+        }
+    }
+
+    let (rest,_tag) = tag("/minecraft/mc-mods/")(url).map_err(error(url))?;
+    let (rest,_id) = take_till(|c: char| c == '/')(rest).map_err(error(url))?;
+    let (rest,_tag) = tag("/files/")(rest).map_err(error(url))?;
+    let (rest,version) = map_res(take_while(|c: char| c.is_digit(10)), u64::from_str)(rest).map_err(error(url))?;
+    let (_rest,_tag) = opt(tag("/file"))(rest).map_err(error(url))?;
+
+    Ok(version)
 }
 
 //TODO: replace with TryStreamExt::try_faltten when we can update to futures-preview-0.1.18
@@ -289,5 +295,5 @@ async fn page_for_version(
 
         mods.push(ReleaseInfo{release_status: ReleaseStatus::parse_short(&release_status).expect("Bad release status"),modd:curseforge::Mod{version,id: curse_mod.id.clone()}});
     }
-    return Ok(mods);
+    Ok(mods)
 }

@@ -40,7 +40,7 @@ app_dirs = "1.2.1"
 
 [dependencies.nom]
 features = ["regexp"]
-version = "3.2.1"
+version = "5.0.0"
 
 [dependencies.semver]
 features = ["serde"]

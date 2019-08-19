@@ -3,7 +3,6 @@ use futures;
 use semver;
 use termcolor;
 use std;
-use nom;
 
 use futures::{
     prelude::*,
@@ -124,15 +123,25 @@ enum Response {
 
 impl Response{
     fn from_str(s: &str) -> Result<Option<Self>, ()> {
-        let res = alt_complete!(
-            s.trim(),
-            map!(re_match!(r"(?i)Y|Yes"), |_| Some(Self::Yes)) |
-            map!(re_match!(r"(?i)N|No"), |_| Some(Self::No)) |
-            map!(tag!(""), |_| None)
-        );
-        match res{
-            nom::IResult::Done(i,o) => if i.is_empty(){ Ok(o) } else { Err(()) },
-            _ => Err(()),
+        use nom::bytes::complete::*;
+        use nom::combinator::*;
+        use nom::branch::*;
+
+        fn error<'a, I>() -> impl (Fn(nom::Err<(I,nom::error::ErrorKind)>) -> ()) + 'a{
+            move |_|{}
+        }
+
+        let (rest,out) = alt((
+            map(tag_no_case("yes"), |_| Some(Self::Yes)),
+            map(tag_no_case("y"), |_| Some(Self::Yes)),
+            map(tag_no_case("no"), |_| Some(Self::No)),
+            map(tag_no_case("n"), |_| Some(Self::No)),
+            map(tag(""), |_| None)
+        ))(s.trim()).map_err(error())?;
+        if rest.is_empty(){
+            Ok(out)
+        } else {
+            Err(())
         }
     }
 }
