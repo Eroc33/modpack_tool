@@ -64,12 +64,6 @@ pub mod error{
         },
         #[snafu(display("A http server error occurred. Please try again later"))]
         HttpServer,
-        #[snafu(display("There was a problem with the cache."))]
-        Cache,
-        #[snafu(display("Error while symlinking: {}", source))]
-        Symlink{
-            source: std::io::Error,
-        },
         #[snafu(display("Cache error: {}", source))]
         Cached{
             #[snafu(source(from(crate::cache::Error, Box::new)))]

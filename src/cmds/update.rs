@@ -75,7 +75,7 @@ pub enum Error{
     },
     #[snafu(display("Error while installing forge: {}", source))]
     InstallingForge{
-        source: crate::download::Error,
+        source: crate::cache::Error,
     },
     #[snafu(display("Zip error while trying to load entry `{}`: {}", name, source))]
     MissingZipEntry{

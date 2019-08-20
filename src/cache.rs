@@ -95,6 +95,15 @@ pub trait Cacheable: Send + Sized + 'static {
     ) -> BoxFuture<()> {
         Self::Cache::install_at(self, location.to_owned(), manager, log)
     }
+    fn install_at_custom_filename(
+        self,
+        location: PathBuf,
+        custom_filename: std::ffi::OsString,
+        manager: download::Manager,
+        log: Logger,
+    ) -> BoxFuture<()> {
+        Self::Cache::install_at_custom_filename(self, location.to_owned(), custom_filename, manager, log)
+    }
 }
 
 pub trait Cache<T: Cacheable + Send + 'static> {
@@ -119,6 +128,32 @@ pub trait Cache<T: Cacheable + Send + 'static> {
             if let Some(name) = cached_path.file_name() {
                 location.push(name);
             }
+            match util::symlink(cached_path.clone(), location.clone(), &log).await {
+                Err(util::SymlinkError::Io{source}) => return Err(error::Symlink{from: cached_path.display().to_string(), to: location.display().to_string()}.into_error(source)),
+                Err(util::SymlinkError::AlreadyExists) => {
+                    //TODO: verify the file, and replace/redownload it if needed
+                    warn!(log, "File already exists, assuming content is correct");
+                }
+                Ok(_) => {}
+            }
+            Ok(())
+        })
+    }
+    fn install_at_custom_filename(
+        t: T,
+        mut location: PathBuf,
+        custom_filename: std::ffi::OsString,
+        manager: download::Manager,
+        log: Logger,
+    ) -> BoxFuture<()> {
+        Box::pin(async move{
+            let cached_path = Self::with(t, manager, log.clone()).await?;
+            info!(log, "installing item"; "location"=>location.as_path().to_string_lossy().into_owned());
+
+            tokio::fs::create_dir_all(&location).await.context(error::CreatingInstallDir{path: location.display().to_string()})?;
+
+            location.push(custom_filename);
+
             match util::symlink(cached_path.clone(), location.clone(), &log).await {
                 Err(util::SymlinkError::Io{source}) => return Err(error::Symlink{from: cached_path.display().to_string(), to: location.display().to_string()}.into_error(source)),
                 Err(util::SymlinkError::AlreadyExists) => {

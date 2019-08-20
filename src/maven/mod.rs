@@ -2,13 +2,11 @@ use futures::prelude::*;
 use http::Uri;
 use slog::Logger;
 use std::{
-    fs,
     iter::FromIterator,
     path::{Path, PathBuf},
     str::FromStr,
 };
 use crate::{
-    util,
     cache::{self, Cacheable, Cache as _},
     download,
     error::prelude::*,
@@ -191,38 +189,22 @@ impl ResolvedArtifact {
     }
     pub fn install_at_no_classifier(
         self,
-        mut location: PathBuf,
+        location: PathBuf,
         manager: download::Manager,
         log: Logger,
-    ) -> impl Future<Output=crate::download::Result<()>> + Send {
+    ) -> impl Future<Output=crate::cache::Result<()>> + Send {
         async move{
-            let cached_path = <Self as Cacheable>::Cache::with(self.clone(), manager, log.clone()).await.context(crate::download::error::Cached)?;
-            let Self { artifact, repo } = self;
-            let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
-            info!(log, "installing maven artifact");
-
             let cached_path_no_classifier = Self {
                 artifact: Artifact {
                     classifier: None,
-                    ..artifact.clone()
+                    ..self.artifact.clone()
                 },
-                repo,
+                repo: self.repo.clone(),
             }.cached_path();
 
-            fs::create_dir_all(location.to_owned()).context(download::error::Io)?;
-
-            if let Some(name) = cached_path_no_classifier.file_name() {
-                location.push(name);
-            }
-            match util::symlink(cached_path, location, &log).await {
-                Err(util::SymlinkError::Io{source}) => return Err(download::error::Symlink.into_error(source)),
-                Err(util::SymlinkError::AlreadyExists) => {
-                    //TODO: verify the file, and replace/redownload it if needed
-                    warn!(log, "File already exists, assuming content is correct");
-                }
-                Ok(_) => {}
-            }
-            Ok(())
+            let filename = cached_path_no_classifier.file_name().expect("Maven artifact should have a filename");
+            
+            <Self as Cacheable>::install_at_custom_filename(self, location, filename.to_os_string(), manager, log).await
         }
     }
 }
