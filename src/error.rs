@@ -60,12 +60,6 @@ pub enum Error{
     },
 }
 
-// #[derive(Debug, Snafu)]
-// pub enum Error {
-//     #[fail(display = "{}", _0)]
-//     Report(Context<String>),
-// }
-
 pub type Result<T> = StdResult<T, Error>;
 
 pub trait ResultExt<T>{
