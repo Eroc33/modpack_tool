@@ -11,7 +11,8 @@ variables:
 
 before_script:
   - apt-get update -yq
-  - apt-get install -o dir::cache::archives="$APT_CACHE_DIR" -y {{ DEPENDENCIES }}
+  - rustup update nightly
+  - rustup default nightly
 
 test:
   stage: test
