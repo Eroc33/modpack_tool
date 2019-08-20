@@ -47,11 +47,11 @@ mod tests {
 }
 
 pub fn uri_to_url(uri: &Uri) -> crate::download::Result<Url> {
-    Ok(Url::from_str(format!("{}", uri).as_str()).context(crate::download::Url)?)
+    Ok(Url::from_str(format!("{}", uri).as_str()).context(crate::download::error::Url)?)
 }
 
 pub fn url_to_uri(url: &Url) -> crate::download::Result<Uri> {
-    Ok(Uri::from_str(url.as_ref()).context(crate::download::Uri)?)
+    Ok(Uri::from_str(url.as_ref()).context(crate::download::error::Uri)?)
 }
 
 pub async fn save_stream_to_file<S>(
@@ -61,10 +61,10 @@ pub async fn save_stream_to_file<S>(
 where
     S: Stream<Item = Result<hyper::Chunk,hyper::error::Error>> + Unpin + Send,
 {
-    let mut file = tokio::fs::File::create(path).await.context(crate::download::Io)?;
+    let mut file = tokio::fs::File::create(path).await.context(crate::download::error::Io)?;
 
-    while let Some(chunk) = stream.try_next().await.context(crate::download::Hyper)?{
-        file.write_all(chunk.as_ref()).await.context(crate::download::Io)?;
+    while let Some(chunk) = stream.try_next().await.context(crate::download::error::Hyper)?{
+        file.write_all(chunk.as_ref()).await.context(crate::download::error::Io)?;
     }
     Ok(())
 }

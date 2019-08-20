@@ -88,7 +88,7 @@ impl crate::cache::Cacheable for Mod {
             self.id,
             self.version.to_string()
         );
-        Ok(Uri::from_str(&loc).context(download::Uri)?)
+        Ok(Uri::from_str(&loc).context(download::error::Uri)?)
     }
 }
 impl Into<crate::mod_source::ModSource> for Mod {

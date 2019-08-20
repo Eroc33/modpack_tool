@@ -84,5 +84,6 @@ pub mod prelude{
     pub use crate::error;
     pub use crate::error::ResultExt as _;
     pub use snafu::ResultExt as _;
+    pub use snafu::OptionExt as _;
     pub use snafu::IntoError as _;
 }

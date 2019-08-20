@@ -14,7 +14,6 @@ use http::{
 };
 use hyper_tls::HttpsConnector;
 use slog::Logger;
-use time;
 use url;
 use crate::{
     util,
@@ -26,51 +25,54 @@ use std::{
     pin::Pin,
 };
 use indicatif::ProgressBar;
-use snafu::Snafu;
 
-#[derive(Debug, Snafu)]
-#[snafu(visibility(pub))]
-pub enum Error {
-    #[snafu(display("IO error: {}", source))]
-    Io{
-        source: std::io::Error
-    },
-    #[snafu(display("Uri error: {}", source))]
-    Uri{
-        source: http::uri::InvalidUri,
-    },
-    #[snafu(display("Url error: {}", source))]
-    Url{
-        source: url::ParseError,
-    },
-    #[snafu(display("Http error: {}", source))]
-    Hyper{
-        source: hyper::Error,
-    },
-    #[snafu(display("DurationOutOfRange error: {}", source))]
-    DurationOutOfRange{
-        source: time::OutOfRangeError,
-    },
-    #[snafu(display("StdTime error: {}", source))]
-    StdTime{
-        source: std::time::SystemTimeError,
-    },
-    #[snafu(display("Got a redirect without a location header."))]
-    MalformedRedirect,
-    #[snafu(display("A http client error ({:?}) occurred while fetching {}. Please check your pack.json is valid", status, url))]
-    HttpClient{
-        status: http::StatusCode,
-        url: url::Url
-    },
-    #[snafu(display("A http server error occurred. Please try again later"))]
-    HttpServer,
-    #[snafu(display("There was a problem with the cache."))]
-    Cache,
-    #[snafu(display("Error while symlinking: {}", source))]
-    Symlink{
-        source: std::io::Error,
+pub mod error{
+    use snafu::Snafu;
+    #[derive(Debug, Snafu)]
+    #[snafu(visibility(pub))]
+    pub enum Error {
+        #[snafu(display("IO error: {}", source))]
+        Io{
+            source: std::io::Error
+        },
+        #[snafu(display("Uri error: {}", source))]
+        Uri{
+            source: http::uri::InvalidUri,
+        },
+        #[snafu(display("Url error: {}", source))]
+        Url{
+            source: url::ParseError,
+        },
+        #[snafu(display("Http error: {}", source))]
+        Hyper{
+            source: hyper::Error,
+        },
+        #[snafu(display("DurationOutOfRange error: {}", source))]
+        DurationOutOfRange{
+            source: time::OutOfRangeError,
+        },
+        #[snafu(display("StdTime error: {}", source))]
+        StdTime{
+            source: std::time::SystemTimeError,
+        },
+        #[snafu(display("Got a redirect without a location header."))]
+        MalformedRedirect,
+        #[snafu(display("A http client error ({:?}) occurred while fetching {}. Please check your pack.json is valid", status, url))]
+        HttpClient{
+            status: http::StatusCode,
+            url: url::Url
+        },
+        #[snafu(display("A http server error occurred. Please try again later"))]
+        HttpServer,
+        #[snafu(display("There was a problem with the cache."))]
+        Cache,
+        #[snafu(display("Error while symlinking: {}", source))]
+        Symlink{
+            source: std::io::Error,
+        }
     }
 }
+pub use error::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -244,12 +246,12 @@ impl Manager {
 
         async move{
             trace!(log,"Creating dir {}",folder_path.to_string_lossy());
-            tokio::fs::create_dir_all(folder_path).await.context(Io)?;
+            tokio::fs::create_dir_all(folder_path).await.context(error::Io)?;
 
             // FIXME find a way to workout which mod file is which *before* downloading
             if path.exists() && path.is_file() {
                 trace!(log,"Checking timestamp on file {}",path.to_string_lossy());
-                let date_time = util::file_timestamp(&path).context(Io)?;
+                let date_time = util::file_timestamp(&path).context(error::Io)?;
                 let formatted = format!("{}",date_time.format("%a, %d %b %Y %T GMT"));
                 let headerval = HeaderValue::from_str(formatted.as_str()).expect("formatted date was not a valid header value");
                 request.headers_mut().insert(http::header::IF_MODIFIED_SINCE,headerval);
@@ -324,7 +326,7 @@ impl Future for RedirectFollower {
             this.current_location.as_mut(),
         ) {
             loop {
-                if let Poll::Ready(res) = std::future::Future::poll(current_response.as_mut(),cx).map_err(|source| Hyper.into_error(source))? {
+                if let Poll::Ready(res) = std::future::Future::poll(current_response.as_mut(),cx).map_err(|source| error::Hyper.into_error(source))? {
                     match res.status() {
                         http::StatusCode::FOUND
                         | http::StatusCode::MOVED_PERMANENTLY
@@ -332,9 +334,9 @@ impl Future for RedirectFollower {
                             let next = res.headers()
                                 .get(header::LOCATION)
                                 .take()
-                                .ok_or_else(|| Error::MalformedRedirect)?;
+                                .context(error::MalformedRedirect)?;
                             let next_url = current_location.join(&*next.to_str()
-                                .expect("Location header should only ever be ascii")).map_err(|source| Url.into_error(source))?;
+                                .expect("Location header should only ever be ascii")).context(error::Url)?;
                             let next = crate::util::url_to_uri(&next_url)?;
                             let mut req = Request::builder()
                                 .method(this.method.clone())
@@ -347,10 +349,10 @@ impl Future for RedirectFollower {
                             *current_location = next_url;
                         }
                         status if status.is_client_error() => {
-                            break Poll::Ready(HttpClient{status,url: this.starting_location.clone()}.fail());
+                            break Poll::Ready(error::HttpClient{status,url: this.starting_location.clone()}.fail());
                         }
                         status if status.is_server_error() => {
-                            break Poll::Ready(HttpServer.fail());
+                            break Poll::Ready(error::HttpServer.fail());
                         }
                         hyper::StatusCode::OK => {
                             break Poll::Ready(Ok((res, current_location.clone())));

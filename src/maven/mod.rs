@@ -85,15 +85,15 @@ impl Cache {
         if Self::is_cached(&resolved) {
             let cached_path = resolved.cached_path();
             let sha_url_res = resolved.sha_uri();
-            let mut cached_file = tokio::fs::File::open(cached_path).await.context(download::Io)?;
+            let mut cached_file = tokio::fs::File::open(cached_path).await.context(download::error::Io)?;
 
             let mut sha = HashWriter::new();
-            cached_file.copy(&mut sha).await.context(download::Io)?;
+            cached_file.copy(&mut sha).await.context(download::error::Io)?;
             let cached_sha = sha.digest();
 
             let sha_uri = sha_url_res?;
             let (res,_) = manager.get(sha_uri)?.await?;
-            let hash_str = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await.context(download::Hyper)?;
+            let hash_str = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await.context(download::error::Hyper)?;
             if hash_str == format!("{}", cached_sha) {
                 Ok(VerifyResult::Good)
             } else {
@@ -118,7 +118,7 @@ impl Artifact {
     pub fn get_uri_on(&self, base: &Uri) -> crate::download::Result<Uri> {
         let base = crate::util::uri_to_url(base)?;
         let path = self.to_path();
-        let url = base.join(path.to_str().expect("non unicode path encountered")).context(download::Url)?;
+        let url = base.join(path.to_str().expect("non unicode path encountered")).context(download::error::Url)?;
         crate::util::url_to_uri(&url)
     }
 
@@ -194,13 +194,13 @@ impl ResolvedArtifact {
                         repo,
                     }.cached_path();
 
-                    fs::create_dir_all(location.to_owned()).context(download::Io)?;
+                    fs::create_dir_all(location.to_owned()).context(download::error::Io)?;
 
                     if let Some(name) = cached_path_no_classifier.file_name() {
                         location.push(name);
                     }
                     match util::symlink(cached_path, location, &log).await {
-                        Err(util::SymlinkError::Io{source}) => return Err(download::Symlink.into_error(source)),
+                        Err(util::SymlinkError::Io{source}) => return Err(download::error::Symlink.into_error(source)),
                         Err(util::SymlinkError::AlreadyExists) => {
                             //TODO: verify the file, and replace/redownload it if needed
                             warn!(log, "File already exists, assuming content is correct");

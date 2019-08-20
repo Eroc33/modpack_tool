@@ -59,7 +59,7 @@ impl Downloadable for ModSource {
                 curseforge::Cache::install_at(modd, location, manager, log)
             }
             Self::MavenMod { repo, artifact } => Box::pin(async move{
-                let repo = Uri::from_str(repo.as_str()).context(crate::download::Uri)?;
+                let repo = Uri::from_str(repo.as_str()).context(crate::download::error::Uri)?;
                 artifact.download_from(location.as_ref(), repo, manager, log).await?;
                 Ok(())
             }),
