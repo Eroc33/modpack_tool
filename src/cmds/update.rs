@@ -12,7 +12,6 @@ use structopt::StructOpt;
 use snafu::Snafu;
 
 use crate::{
-    Result,
     download::{self, DownloadMulti},
     hacks,
     maven,
@@ -99,6 +98,10 @@ pub enum Error{
         path: String,
         source: std::io::Error,
     },
+    #[snafu(display("Error while hacking forge veresion json: {}", source))]
+    HackForgeVersionJson{
+        source: crate::hacks::Error,
+    }
 }
 
 #[derive(Debug, StructOpt)]
@@ -148,7 +151,7 @@ pub fn update(pack: ModpackConfig, log: Logger) -> impl Future<Output=crate::Res
         let install_fut = install_forge(
                             forge_maven_artifact,
                             download_manager.clone(),
-                            &log);
+                            &log).erased();
 
         let download_mods_fut = download_modlist(pack_path.clone(), mods, download_manager.clone(), &log, mprog.clone());
 
@@ -156,7 +159,7 @@ pub fn update(pack: ModpackConfig, log: Logger) -> impl Future<Output=crate::Res
             install_fut,
             download_mods_fut
         )?;
-        add_launcher_profile(&pack_path, pack_name, id, icon, &log, progress)?.await?;
+        add_launcher_profile(&pack_path, pack_name, id, icon, &log, progress).erased()?.await.erased()?;
         info!(log,"Done");
         t_handle.join().unwrap();
         Ok(())
@@ -181,11 +184,11 @@ fn add_launcher_profile(
     icon: Option<String>,
     _log: &Logger,
     progress: ProgressBar,
-) -> Result<impl Future<Output=Result<()>> + Send + 'static> {
+) -> Result<(impl Future<Output=Result<(),Error>> + Send + 'static),Error> {
     progress.set_prefix("Adding launcher profile");
 
     //de UNC prefix path, because apparently java can't handle it
-    let pack_path = pack_path.canonicalize().context(CanonicalizingPath{ path: pack_path.display().to_string() }).erased()?;
+    let pack_path = pack_path.canonicalize().context(CanonicalizingPath{ path: pack_path.display().to_string() })?;
     let pack_path = util::remove_unc_prefix(pack_path);
 
     let mut mc_path = mc_install_loc();
@@ -195,11 +198,11 @@ fn add_launcher_profile(
 
     Ok(
         async move{
-            let mut profiles_file = tokio::fs::File::open(mc_path.clone()).await.context(MissingProfilesJson).erased()?;
+            let mut profiles_file = tokio::fs::File::open(mc_path.clone()).await.context(MissingProfilesJson)?;
             let launcher_profiles = {
                 progress.set_message("loaded profile json");
                 progress.inc(1);
-                let mut launcher_profiles: Value = crate::async_json::read(&mut profiles_file).await.context(InvalidProfilesJson).erased()?;
+                let mut launcher_profiles: Value = crate::async_json::read(&mut profiles_file).await.context(InvalidProfilesJson)?;
 
                 {
                     use serde_json::map::Entry;
@@ -242,8 +245,8 @@ fn add_launcher_profile(
                 progress.inc(1);
                 launcher_profiles
             };
-            let mut out_file = tokio::fs::File::create(mc_path).await.context(MissingProfilesJson).erased()?;
-            crate::async_json::write_pretty(&mut out_file, &launcher_profiles).await.context(InvalidProfilesJson).erased()?;
+            let mut out_file = tokio::fs::File::create(mc_path).await.context(MissingProfilesJson)?;
+            crate::async_json::write_pretty(&mut out_file, &launcher_profiles).await.context(InvalidProfilesJson)?;
             progress.finish_with_message("Done");
             Ok(())
         }
@@ -302,20 +305,20 @@ fn install_forge(
     forge_artifact: maven::ResolvedArtifact,
     manager: download::Manager,
     log: &Logger,
-) -> impl Future<Output=crate::Result<VersionId>> {
+) -> impl Future<Output=Result<VersionId,Error>> {
 
     let log = log.new(o!("stage"=>"install_forge"));
     async move{
         let forge_maven_artifact_path = forge_artifact.to_path();
-        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await.context(ForgeDownload{version: forge_artifact.artifact.version.clone()}).erased()?;
+        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await.context(ForgeDownload{version: forge_artifact.artifact.version.clone()})?;
 
         debug!(log, "Opening forge jar");
-        let mut zip_reader = zip::ZipArchive::new(reader.into_std()).context(InvalidForgeJar).erased()?;
+        let mut zip_reader = zip::ZipArchive::new(reader.into_std()).context(InvalidForgeJar)?;
         let version_id: String = {
             debug!(log, "Reading version json");
-            let version_reader = zip_reader.by_name("version.json").context(MissingZipEntry{name: "version.json"}).erased()?;
+            let version_reader = zip_reader.by_name("version.json").context(MissingZipEntry{name: "version.json"})?;
             let version_info: Value =
-                serde_json::from_reader(version_reader).context(InvalidVersionJson).erased()?;
+                serde_json::from_reader(version_reader).context(InvalidVersionJson)?;
             version_info["id"]
                 .as_str()
                 .expect("bad version.json id value")
@@ -326,27 +329,27 @@ fn install_forge(
         mc_path.push("versions");
         mc_path.push(version_id.as_str());
         debug!(log, "creating profile folder");
-        tokio::fs::create_dir_all(mc_path.clone()).await.context(CreatingDirectory{directory: mc_path.display().to_string()}).erased()?;
+        tokio::fs::create_dir_all(mc_path.clone()).await.context(CreatingDirectory{directory: mc_path.display().to_string()})?;
 
         mc_path.push(format!("{}.json", version_id.as_str()));
 
         debug!(log, "saving version json to minecraft install loc");
 
-        let version_file = tokio::fs::File::create(mc_path.clone()).await.context(CreatingVersionJson).erased()?;
+        let version_file = tokio::fs::File::create(mc_path.clone()).await.context(CreatingVersionJson)?;
         //TODO: figure out how to use tokio copy here
         //note zip_reader.by_name() returns a ZipFile and ZipFile: !Send
-        std::io::copy(&mut zip_reader.by_name("version.json").context(MissingZipEntry{name: "version.json"}).erased()?,
-                        &mut version_file.into_std()).context(CopyingVersionJson).erased()?;
+        std::io::copy(&mut zip_reader.by_name("version.json").context(MissingZipEntry{name: "version.json"})?,
+                        &mut version_file.into_std()).context(CopyingVersionJson)?;
 
         debug!(log, "Applying version json hacks");
-        hacks::hack_forge_version_json(mc_path)?;
+        hacks::hack_forge_version_json(mc_path).context(HackForgeVersionJson)?;
 
         let mut mc_path = mc_install_loc();
         mc_path.push("libraries");
         mc_path.push(forge_maven_artifact_path);
         mc_path.pop(); //pop the filename
 
-        forge_artifact.install_at_no_classifier(mc_path, manager, log).await.context(InstallingForge).erased()?;
+        forge_artifact.install_at_no_classifier(mc_path, manager, log).await.context(InstallingForge)?;
         Ok(VersionId(version_id))
     }
 }

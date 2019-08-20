@@ -61,6 +61,7 @@ pub enum Error{
 }
 
 pub type Result<T> = StdResult<T, Error>;
+pub type BoxFuture<T> = futures::future::BoxFuture<'static,Result<T>>;
 
 pub trait ResultExt<T>{
     fn erased(self) -> Result<T>;
@@ -74,10 +75,31 @@ impl<T,E: std::error::Error + Send + Sync + 'static> ResultExt<T> for StdResult<
     }
 }
 
+pub trait TryFutureExt<T>{
+    fn erased(self) -> BoxFuture<T>;
+}
+
+impl<Fut,T,E: std::error::Error + Send + Sync + 'static> TryFutureExt<T> for Fut
+    where Fut: std::future::Future<Output=StdResult<T,E>> + Send + 'static
+{
+    fn erased(self) -> BoxFuture<T>
+    {
+        use futures::TryFutureExt  as _;
+        use snafu::futures::TryFutureExt as _;
+        Box::pin(self.map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>).context(Dynamic))
+    }
+}
+
 pub mod prelude{
-    pub use crate::error;
-    pub use crate::error::ResultExt as _;
-    pub use snafu::ResultExt as _;
-    pub use snafu::OptionExt as _;
-    pub use snafu::IntoError as _;
+    pub use crate::error::{
+        self,
+        ResultExt as _,
+        TryFutureExt as _,
+    };
+    pub use snafu::{
+        ResultExt as _,
+        OptionExt as _,
+        IntoError as _,
+        futures::TryFutureExt as _,
+    };
 }

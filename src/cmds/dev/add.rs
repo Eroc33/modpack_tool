@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use futures::prelude::*;
 use structopt::StructOpt;
 use crate::error::prelude::*;
 use snafu::Snafu;
@@ -43,20 +42,21 @@ enum Error{
     },
 }
 
-pub fn add(args: Args) -> impl Future<Output=Result<(),crate::Error>> + Send + 'static
+pub async fn add(args: Args) -> Result<(),crate::Error>
 {
-    let Args{pack_file, mod_url} = args;
-
     use crate::mod_source::ModpackConfig;
 
-    async move{
-        let mut file = tokio::fs::File::open(pack_file.clone()).await.context(MissingPack{pack_file: pack_file.display().to_string()}).erased()?;
-        let mut pack: ModpackConfig = crate::async_json::read(&mut file).await.context(BadPackfile{pack_file: pack_file.display().to_string()}).erased()?;
+    let Args{pack_file, mod_url} = args;
 
-        pack.add_mod_by_url(mod_url.as_str()).context(UnparseableModsourceUrl{url: mod_url}).erased()?;
+    let res: Result<_,Error> = try{
+        let mut file = tokio::fs::File::open(pack_file.clone()).await.context(MissingPack{pack_file: pack_file.display().to_string()})?;
+        let mut pack: ModpackConfig = crate::async_json::read(&mut file).await.context(BadPackfile{pack_file: pack_file.display().to_string()})?;
 
-        let mut out_file = tokio::fs::File::create(pack_file.clone()).await.context(CreatingPack{pack_file: pack_file.display().to_string()}).erased()?;
-        async_json::write_pretty( &mut out_file, &pack).await.context(PackfileOutput{pack_file: pack_file.display().to_string()}).erased()?;
-        Ok(())
-    }
+        pack.add_mod_by_url(mod_url.as_str()).context(UnparseableModsourceUrl{url: mod_url})?;
+
+        let mut out_file = tokio::fs::File::create(pack_file.clone()).await.context(CreatingPack{pack_file: pack_file.display().to_string()})?;
+        async_json::write_pretty( &mut out_file, &pack).await.context(PackfileOutput{pack_file: pack_file.display().to_string()})?;
+        ()
+    };
+    res.erased()
 }

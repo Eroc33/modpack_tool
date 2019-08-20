@@ -35,7 +35,7 @@ zip = "0.2"
 console = "0.7.7"
 structopt = "0.2.18"
 app_dirs = "1.2.1"
-snafu = "0.4.4"
+snafu = {version="0.4.4", features=["unstable-futures"]}
 
 [dependencies.nom]
 features = ["regexp"]

@@ -1,4 +1,4 @@
-#![feature(slice_patterns, never_type, generators, proc_macro_hygiene, async_await)]
+#![feature(async_await, try_blocks)]
 
 #[macro_use]
 extern crate serde_derive;
