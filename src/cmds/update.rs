@@ -57,7 +57,8 @@ pub enum Error{
     #[snafu(display("Error while getting forge artifact (version: {})", version))]
     ForgeDownload{
         version: String,
-        source: crate::cache::Error,
+        #[snafu(source(from(crate::cache::Error, Box::new)))]
+        source: Box<crate::cache::Error>,
     },
     #[snafu(display("Error while creating version json: {}", source))]
     CreatingVersionJson{

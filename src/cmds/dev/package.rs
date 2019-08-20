@@ -77,12 +77,10 @@ pub async fn package(args: Args) -> Result<(),crate::Error>
                 writer.start_file("config.json",zip::write::FileOptions::default()).context(Zip)?;
                 writer.write_all(&pack_config_contents[..]).context(Io)?;
                 writer.finish().context(Zip)?;
-                ()
             };
             res.context(BufferedHybridPackfile)?
         }
         file.write_all(tmp.into_inner().as_slice()).context(CreatingHybridPackfile{path: oneclick_path.display().to_string()})?;
-        ()
     };
     res.erased()
 }

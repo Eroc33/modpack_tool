@@ -56,7 +56,6 @@ pub async fn add(args: Args) -> Result<(),crate::Error>
 
         let mut out_file = tokio::fs::File::create(pack_file.clone()).await.context(CreatingPack{pack_file: pack_file.display().to_string()})?;
         async_json::write_pretty( &mut out_file, &pack).await.context(PackfileOutput{pack_file: pack_file.display().to_string()})?;
-        ()
     };
     res.erased()
 }
