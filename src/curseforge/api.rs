@@ -10,6 +10,7 @@ use http::Uri;
 use crate::{
     download::HttpSimple,
     curseforge::{self,ReleaseStatus},
+    error::prelude::*,
 };
 
 trait SelectExt{
@@ -273,11 +274,14 @@ async fn page_for_version(
     
     let all_url = format!("https://www.curseforge.com/minecraft/mc-mods/{}/files/all?filter-game-version=2020709689:{}&page={}",curse_mod.id,encoded_version,page_num);
 
-    let body = http_client.get(Uri::from_str(&all_url)?)
-            .map_err(crate::Error::from)
-            .await?
+    let body = http_client.get(Uri::from_str(&all_url).context(error::Uri)?)
+            .await
+            .context(error::Http)?
             .into_body()
-            .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
+            .map_ok(hyper::Chunk::into_bytes)
+            .try_concat()
+            .await
+            .context(error::Http)?;
     let doc = kuchiki::parse_html()
         .from_utf8()
         .read_from(&mut Cursor::new(body))

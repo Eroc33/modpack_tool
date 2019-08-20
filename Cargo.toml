@@ -8,8 +8,6 @@ edition = "2018"
 chrono = "0.4.2"
 clap = "2.24"
 env_logger = "0.5"
-failure = "0.1.1"
-failure_derive = "0.1.1"
 futures-preview = {version="0.3.0-alpha.17",features=["nightly","async-await"]}
 html5ever = "0.22.0"
 http = "0.1.5"
@@ -37,6 +35,7 @@ zip = "0.2"
 console = "0.7.7"
 structopt = "0.2.18"
 app_dirs = "1.2.1"
+snafu = "0.4.4"
 
 [dependencies.nom]
 features = ["regexp"]

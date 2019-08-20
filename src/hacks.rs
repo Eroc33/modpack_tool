@@ -1,6 +1,10 @@
 // FIXME Forge devs refuse to actually match the spec
 
-use crate::maven;
+use crate::{
+    error::prelude::*,
+    maven,
+};
+use snafu::Snafu;
 use serde_json::{self, Value};
 use std;
 use std::path::Path;
@@ -9,11 +13,31 @@ const HACK_REQUIRED: &[& str] = &["com.typesafe.akka", "com.typesafe"];
 
 const HACK_REPO_REDIRECT: & str = "https://repo1.maven.org/maven2/";
 
+#[derive(Debug,Snafu)]
+enum Error{
+    #[snafu(display("Forge version json couldn't be opened due to: {}", source))]
+    ForgeVersionJsonMissing{
+        source: std::io::Error,
+    },
+    #[snafu(display("Forge version json was in a bad format: {}", source))]
+    BadForgeVersionJsonFormat{
+        source: serde_json::Error,
+    },
+    #[snafu(display("Failed to write forge version json at path {} due to {}", path, source))]
+    WritingForgeVersionJson{
+        path: String,
+        source: serde_json::Error,
+    }
+}
+
+
+//TODO: use more specific "version json" error here?
 pub fn hack_forge_version_json<P>(path: P) -> crate::Result<()>
     where P: AsRef<Path>
 {
-    let version_file = std::fs::File::open(path.as_ref())?;
-    let mut version: Value = serde_json::from_reader(version_file)?;
+    let path = path.as_ref();
+    let version_file = std::fs::File::open(path).context(ForgeVersionJsonMissing).erased()?;
+    let mut version: Value = serde_json::from_reader(version_file).context(BadForgeVersionJsonFormat).erased()?;
 
     {
         let libraries: &mut Vec<Value> = version.as_object_mut()
@@ -32,12 +56,12 @@ pub fn hack_forge_version_json<P>(path: P) -> crate::Result<()>
                 .parse()
                 .expect("library name was not a maven identifier");
             if HACK_REQUIRED.contains(&artifact.group.as_str()) {
-                library.insert("url".to_string(), serde_json::to_value(HACK_REPO_REDIRECT)?);
+                library.insert("url".to_string(), serde_json::to_value(HACK_REPO_REDIRECT).context(error::Json)?);
             }
         }
     }
 
-    let mut version_file = std::fs::File::create(path.as_ref())?;
-    serde_json::to_writer_pretty(&mut version_file, &version)?;
+    let mut version_file = std::fs::File::create(path).context(ForgeVersionJsonMissing).erased()?;
+    serde_json::to_writer_pretty(&mut version_file, &version).context(WritingForgeVersionJson{path: path.display().to_string()}).erased()?;
     Ok(())
 }

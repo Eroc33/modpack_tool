@@ -4,6 +4,7 @@ use crate::{
     download::{self,Downloadable},
     forge_version,
     maven::{self, ResolvedArtifact},
+    error::prelude::*,
 };
 use futures::prelude::*;
 use http::{self, Uri};
@@ -13,7 +14,6 @@ use std::{
     str::FromStr,
 };
 use semver;
-use failure::{ResultExt};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub enum ModSource {
@@ -59,7 +59,7 @@ impl Downloadable for ModSource {
                 curseforge::Cache::install_at(modd, location, manager, log)
             }
             Self::MavenMod { repo, artifact } => Box::pin(async move{
-                let repo = Uri::from_str(repo.as_str()).map_err(download::Error::from)?;
+                let repo = Uri::from_str(repo.as_str()).context(crate::download::Uri)?;
                 artifact.download_from(location.as_ref(), repo, manager, log).await?;
                 Ok(())
             }),
@@ -80,15 +80,17 @@ impl IndirectableModpack{
     pub async fn resolve(self) -> Result<ModpackConfig,crate::Error>{
         match self{
             IndirectableModpack::Indirected(uri_str) => {
-                let uri = Uri::from_str(&uri_str)?;
+                let uri = Uri::from_str(&uri_str).context(error::Uri)?;
                 let (res,_url) = crate::download::HttpSimple::new()
-                    .get_following_redirects(uri)?
-                    .map_err(crate::Error::from)
-                    .await?;
+                    .get_following_redirects(uri)
+                    .context(error::Download)?
+                    .await
+                    .context(error::Download)?;
                 let data = res
                     .into_body()
-                    .map_ok(hyper::Chunk::into_bytes).try_concat().await?;
-                Ok(serde_json::from_reader(std::io::Cursor::new(data))?)
+                    .map_ok(hyper::Chunk::into_bytes).try_concat().await
+                    .context(error::Http)?;
+                Ok(serde_json::from_reader(std::io::Cursor::new(data)).context(error::Json)?)
             },
             IndirectableModpack::Real(modpack) => Ok(modpack),
         }
@@ -109,14 +111,14 @@ impl ModpackConfig {
     pub fn folder(&self) -> String {
         self.name.replace(|c: char| !c.is_alphanumeric(), "_")
     }
-    pub fn forge_maven_artifact(&self) -> Result<ResolvedArtifact, http::uri::InvalidUri> {
-        Ok(maven::Artifact {
+    pub fn forge_maven_artifact(&self) -> ResolvedArtifact {
+        maven::Artifact {
             group: "net.minecraftforge".into(),
             artifact: "forge".into(),
             version: self.forge.clone(),
             classifier: Some("universal".into()),
             extension: Some("jar".into()),
-        }.resolve(Uri::from_str(forge_version::BASE_URL)?))
+        }.resolve(Uri::from_str(forge_version::BASE_URL).expect("const Uri should always be valid"))
     }
     pub fn replace_mod(&mut self, modsource: ModSource) {
         match modsource {
@@ -155,7 +157,16 @@ impl ModpackConfig {
         Ok(())
     }
     pub async fn load_maybe_indirected(file: &mut tokio::fs::File) -> Result<ModpackConfig,crate::Error>{
-        let indirectable: IndirectableModpack = crate::async_json::read(file).await.context("not a valid (indirectable) modpack config")?;
+        let indirectable: IndirectableModpack = crate::async_json::read(file).await.context(NotAValidIndirectableModpack).erased()?;
         Ok(indirectable.resolve().await?)
+    }
+}
+
+use snafu::Snafu;
+#[derive(Debug,Snafu)]
+pub enum Error{
+    #[snafu(display("not a valid (indirectable) modpack config"))]
+    NotAValidIndirectableModpack{
+        source: crate::async_json::Error,
     }
 }

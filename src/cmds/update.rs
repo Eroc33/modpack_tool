@@ -9,7 +9,7 @@ use tokio;
 use std;
 use zip;
 use structopt::StructOpt;
-use failure::ResultExt;
+use snafu::Snafu;
 
 use crate::{
     Result,
@@ -19,6 +19,7 @@ use crate::{
     cache::Cacheable,
     util,
     mod_source::{ModpackConfig,ModList},
+    error::prelude::*,
 };
 use indicatif::{MultiProgress,ProgressBar,ProgressStyle};
 use std::sync::Arc;
@@ -33,6 +34,73 @@ fn spinner_style() -> ProgressStyle{
         .template("{spinner:.green} [{elapsed_precise}] {msg:!}")
 }
 
+#[derive(Debug,Snafu)]
+pub enum Error{
+    #[snafu(display("Error {} while creating directory: {}",source, directory))]
+    CreatingDirectory{
+        directory: String,
+        source: std::io::Error,
+    },
+    #[snafu(display("Error {} while enumerating directory: {}",source, directory))]
+    EnumeratingDirectory{
+        directory: String,
+        source: std::io::Error,
+    },
+    #[snafu(display("Error {} while removing file: {}",source, file))]
+    RemovingFile{
+        file: String,
+        source: std::io::Error,
+    },
+    #[snafu(display("Forge jar file is not a valid zip"))]
+    InvalidForgeJar{
+        source: zip::result::ZipError,
+    },
+    #[snafu(display("Error while getting forge artifact (version: {})", version))]
+    ForgeDownload{
+        version: String,
+        source: crate::download::Error,
+    },
+    #[snafu(display("Error while creating version json: {}", source))]
+    CreatingVersionJson{
+        source: std::io::Error,
+    },
+    #[snafu(display("Error while copying version json: {}", source))]
+    CopyingVersionJson{
+        source: std::io::Error,
+    },
+    #[snafu(display("pack {} does not exist", pack_file))]
+    MissingPack{
+        pack_file: String,
+        source: std::io::Error,
+    },
+    #[snafu(display("Error while installing forge: {}", source))]
+    InstallingForge{
+        source: crate::download::Error,
+    },
+    #[snafu(display("Zip error while trying to load entry `{}`: {}", name, source))]
+    MissingZipEntry{
+        name: &'static str,
+        source: zip::result::ZipError,
+    },
+    #[snafu(display("Error while parsing version json: {}", source))]
+    InvalidVersionJson{
+        source: serde_json::Error,
+    },
+    #[snafu(display("launcher_profiles.json could not be opened: {}", source))]
+    MissingProfilesJson{
+        source: std::io::Error,
+    },
+    #[snafu(display("launcher_profiles.json has an invalid format: {}", source))]
+    InvalidProfilesJson{
+        source: crate::async_json::Error,
+    },
+    #[snafu(display("Error {} while canonicalizing path: {}", source, path))]
+    CanonicalizingPath{
+        path: String,
+        source: std::io::Error,
+    },
+}
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "update", about = "Updates the on-disk mods from the provided pack file.")]
 pub struct Args{
@@ -44,13 +112,13 @@ impl Args{
     pub async fn dispatch(self, log: slog::Logger) -> crate::Result<()>
     {
         if !self.pack_file.exists(){
-            eprintln!("{:?} is not an accesible path",self.pack_file);
+            eprintln!("{:?} is not an accessible path",self.pack_file);
             Ok(())
         } else if !self.pack_file.is_file(){
             eprintln!("No file exists at the path {:?}",self.pack_file);
             Ok(())
         }else{
-            let mut file = tokio::fs::File::open(self.pack_file.clone()).await.context(format!("{:?} is not a file",&self.pack_file))?;
+            let mut file = tokio::fs::File::open(self.pack_file.clone()).await.context(MissingPack{pack_file: self.pack_file.display().to_string()}).erased()?;
             let pack = ModpackConfig::load_maybe_indirected(&mut file).await?;
             update(pack,log).await
         }
@@ -60,7 +128,7 @@ impl Args{
 pub fn update(pack: ModpackConfig, log: Logger) -> impl Future<Output=crate::Result<()>> {
 
     let mprog = Arc::new(MultiProgress::new());
-    mprog.set_draw_target(indicatif::ProgressDrawTarget::to_term(console::Term::stdout(), None));
+    mprog.set_draw_target(indicatif::ProgressDrawTarget::hidden());
     let download_manager = download::Manager::new();
 
     let mprog_runner = mprog.clone();
@@ -73,11 +141,11 @@ pub fn update(pack: ModpackConfig, log: Logger) -> impl Future<Output=crate::Res
             mprog_runner.join().unwrap();
         });        
         let mut pack_path = PathBuf::from(".");
-        let forge_maven_artifact = pack.forge_maven_artifact()?;
+        let forge_maven_artifact = pack.forge_maven_artifact();
         pack_path.push(pack.folder());
         let ModpackConfig { name: pack_name, mods, icon, .. } = pack;
 
-        let install_fut = install_forge(pack_path.clone(),
+        let install_fut = install_forge(
                             forge_maven_artifact,
                             download_manager.clone(),
                             &log);
@@ -117,7 +185,7 @@ fn add_launcher_profile(
     progress.set_prefix("Adding launcher profile");
 
     //de UNC prefix path, because apparently java can't handle it
-    let pack_path = pack_path.canonicalize()?;
+    let pack_path = pack_path.canonicalize().context(CanonicalizingPath{ path: pack_path.display().to_string() }).erased()?;
     let pack_path = util::remove_unc_prefix(pack_path);
 
     let mut mc_path = mc_install_loc();
@@ -127,11 +195,11 @@ fn add_launcher_profile(
 
     Ok(
         async move{
-            let mut profiles_file = tokio::fs::File::open(mc_path.clone()).await?;
+            let mut profiles_file = tokio::fs::File::open(mc_path.clone()).await.context(MissingProfilesJson).erased()?;
             let launcher_profiles = {
                 progress.set_message("loaded profile json");
                 progress.inc(1);
-                let mut launcher_profiles: Value = crate::async_json::read(&mut profiles_file).await?;
+                let mut launcher_profiles: Value = crate::async_json::read(&mut profiles_file).await.context(InvalidProfilesJson).erased()?;
 
                 {
                     use serde_json::map::Entry;
@@ -174,8 +242,8 @@ fn add_launcher_profile(
                 progress.inc(1);
                 launcher_profiles
             };
-            let mut out_file = tokio::fs::File::create(mc_path).await?;
-            crate::async_json::write_pretty(&mut out_file, &launcher_profiles).await?;
+            let mut out_file = tokio::fs::File::create(mc_path).await.context(MissingProfilesJson).erased()?;
+            crate::async_json::write_pretty(&mut out_file, &launcher_profiles).await.context(InvalidProfilesJson).erased()?;
             progress.finish_with_message("Done");
             Ok(())
         }
@@ -197,24 +265,24 @@ fn download_modlist(
     async move{
         pack_path.push("mods");
         progress.set_prefix("creating mod directory");
-        tokio::fs::create_dir_all(pack_path.clone()).await?;
+        tokio::fs::create_dir_all(pack_path.clone()).await.context(CreatingDirectory{directory: pack_path.display().to_string()}).erased()?;
 
         progress.set_prefix("enumerating mod directory");
-        let mut entry_stream = tokio::fs::read_dir(pack_path.clone()).await?;
+        let mut entry_stream = tokio::fs::read_dir(pack_path.clone()).await.context(EnumeratingDirectory{directory: pack_path.display().to_string()}).erased()?;
 
         progress.set_prefix("Removing old mod files");
 
-        while let Some(entry) = entry_stream.try_next().await? {
+        while let Some(entry) = entry_stream.try_next().await.context(EnumeratingDirectory{directory: pack_path.display().to_string()}).erased()? {
             progress.inc(1);
             progress.set_message(format!("Removing: {}",entry.path().to_str().unwrap()).as_str());
-            tokio::fs::remove_file(entry.path().clone()).await?;
+            tokio::fs::remove_file(entry.path().clone()).await.context(RemovingFile{file: entry.path().display().to_string()}).erased()?;
         }
         progress.finish_with_message("Done");
         let progress = mprog.add(ProgressBar::new(mod_list.len() as u64));
         progress.set_style(bar_style());
 
         progress.set_prefix("Downloading new mod files");
-        mod_list.download_all(pack_path, manager, log, progress.clone()).await?;
+        mod_list.download_all(pack_path, manager, log, progress.clone()).await.context(error::Download)?;
         progress.finish_with_message("Done");
         Ok(())
     }
@@ -231,30 +299,23 @@ fn mc_install_loc() -> PathBuf {
 struct VersionId(pub String);
 
 fn install_forge(
-    mut pack_path: PathBuf,
     forge_artifact: maven::ResolvedArtifact,
     manager: download::Manager,
     log: &Logger,
 ) -> impl Future<Output=crate::Result<VersionId>> {
 
     let log = log.new(o!("stage"=>"install_forge"));
-    pack_path.push("forge");
-
     async move{
-        trace!(log,"Creating pack folder");
-        tokio::fs::create_dir_all(pack_path.clone()).await?;
-        trace!(log,"Created pack folder");
-
         let forge_maven_artifact_path = forge_artifact.to_path();
-        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await.context(format!("Error while getting forge artifact (version: {})",forge_artifact.artifact.version))?;
+        let reader = forge_artifact.clone().reader(manager.clone(), log.clone()).await.context(ForgeDownload{version: forge_artifact.artifact.version.clone()}).erased()?;
 
         debug!(log, "Opening forge jar");
-        let mut zip_reader = zip::ZipArchive::new(reader.into_std()).context("Forge jar file is not a valid zip")?;
+        let mut zip_reader = zip::ZipArchive::new(reader.into_std()).context(InvalidForgeJar).erased()?;
         let version_id: String = {
             debug!(log, "Reading version json");
-            let version_reader = zip_reader.by_name("version.json")?;
+            let version_reader = zip_reader.by_name("version.json").context(MissingZipEntry{name: "version.json"}).erased()?;
             let version_info: Value =
-                serde_json::from_reader(version_reader)?;
+                serde_json::from_reader(version_reader).context(InvalidVersionJson).erased()?;
             version_info["id"]
                 .as_str()
                 .expect("bad version.json id value")
@@ -265,17 +326,17 @@ fn install_forge(
         mc_path.push("versions");
         mc_path.push(version_id.as_str());
         debug!(log, "creating profile folder");
-        tokio::fs::create_dir_all(mc_path.clone()).await?;
+        tokio::fs::create_dir_all(mc_path.clone()).await.context(CreatingDirectory{directory: mc_path.display().to_string()}).erased()?;
 
         mc_path.push(format!("{}.json", version_id.as_str()));
 
         debug!(log, "saving version json to minecraft install loc");
 
-        let version_file = tokio::fs::File::create(mc_path.clone()).await?;
+        let version_file = tokio::fs::File::create(mc_path.clone()).await.context(CreatingVersionJson).erased()?;
         //TODO: figure out how to use tokio copy here
         //note zip_reader.by_name() returns a ZipFile and ZipFile: !Send
-        std::io::copy(&mut zip_reader.by_name("version.json")?,
-                        &mut version_file.into_std())?;
+        std::io::copy(&mut zip_reader.by_name("version.json").context(MissingZipEntry{name: "version.json"}).erased()?,
+                        &mut version_file.into_std()).context(CopyingVersionJson).erased()?;
 
         debug!(log, "Applying version json hacks");
         hacks::hack_forge_version_json(mc_path)?;
@@ -285,7 +346,7 @@ fn install_forge(
         mc_path.push(forge_maven_artifact_path);
         mc_path.pop(); //pop the filename
 
-        forge_artifact.install_at_no_classifier(mc_path, manager, log).await?;
+        forge_artifact.install_at_no_classifier(mc_path, manager, log).await.context(InstallingForge).erased()?;
         Ok(VersionId(version_id))
     }
 }

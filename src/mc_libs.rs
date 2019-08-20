@@ -115,12 +115,12 @@ impl Downloadable for MCLibraryListing {
                     None //nothing to download
                 } else {
                     artifact.classifier = self.platform_native_classifier();
-                    let base = Uri::from_str(MC_LIBS_MAVEN)?;
+                    let base = Uri::from_str(MC_LIBS_MAVEN).context(crate::download::Uri)?;
                     Some(artifact.resolve(base))
                 }
             } else {
                 let artifact = self.name.parse::<maven::Artifact>().unwrap();
-                let base = Uri::from_str(MC_LIBS_MAVEN)?;
+                let base = Uri::from_str(MC_LIBS_MAVEN).context(crate::download::Uri)?;
                 Some(artifact.resolve(base))
             };
             if let Some(resolved_artifact) = resolved_artifact {
@@ -154,6 +154,8 @@ use hyper;
 use serde_json;
 use std::str::FromStr;
 use std::string::String;
+use crate::error;
+use snafu::ResultExt;
 
 impl MCVersionInfo {
     pub fn version(ver: &str) -> impl Future<Output=crate::Result<Self>> {
@@ -166,9 +168,9 @@ impl MCVersionInfo {
             ).as_str(),
         ).unwrap();
         async move{
-            let res = client.get(uri).map_err(crate::Error::from).await?;
-            let buf = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await?;
-            let info: Self = serde_json::de::from_reader(Cursor::new(buf))?;
+            let res = client.get(uri).await.context(error::Http)?;
+            let buf = res.into_body().map_ok(hyper::Chunk::into_bytes).try_concat().await.context(error::Http)?;
+            let info: Self = serde_json::de::from_reader(Cursor::new(buf)).context(error::Json)?;
             Ok(info)
         }
     }

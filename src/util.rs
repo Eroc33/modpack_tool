@@ -17,6 +17,8 @@ use tokio::{
         AsyncWriteExt,
     },
 };
+use crate::error::prelude::*;
+use snafu::Snafu;
 
 use url::Url;
 
@@ -45,46 +47,41 @@ mod tests {
 }
 
 pub fn uri_to_url(uri: &Uri) -> crate::download::Result<Url> {
-    Ok(Url::from_str(format!("{}", uri).as_str())?)
+    Ok(Url::from_str(format!("{}", uri).as_str()).context(crate::download::Url)?)
 }
 
 pub fn url_to_uri(url: &Url) -> crate::download::Result<Uri> {
-    Ok(Uri::from_str(url.as_ref())?)
+    Ok(Uri::from_str(url.as_ref()).context(crate::download::Uri)?)
 }
 
-pub async fn save_stream_to_file<S,E>(
+pub async fn save_stream_to_file<S>(
     mut stream: S,
     path: PathBuf,
 ) -> download::Result<()>
 where
-    S: Stream<Item = Result<hyper::Chunk,E>> + Unpin + Send,
-    download::Error: From<E>,
+    S: Stream<Item = Result<hyper::Chunk,hyper::error::Error>> + Unpin + Send,
 {
-    let mut file = tokio::fs::File::create(path).await?;
+    let mut file = tokio::fs::File::create(path).await.context(crate::download::Io)?;
 
-    while let Some(chunk) = stream.try_next().await?{
-        file.write_all(chunk.as_ref()).await?;
+    while let Some(chunk) = stream.try_next().await.context(crate::download::Hyper)?{
+        file.write_all(chunk.as_ref()).await.context(crate::download::Io)?;
     }
     Ok(())
 }
 
-pub fn file_timestamp<P: AsRef<Path>>(path: P) -> download::Result<DateTime<Utc>> {
+pub fn file_timestamp<P: AsRef<Path>>(path: P) -> std::io::Result<DateTime<Utc>> {
     let metadata = path.as_ref().metadata()?;
     Ok(metadata.modified()?.into())
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Snafu)]
 pub enum SymlinkError {
-    #[fail(display = "{}", _0)]
-    Io(#[cause] std::io::Error),
-    #[fail(display = "The target of the symlink already exists")]
+    #[snafu(display("IO error while symlinking: {}", source))]
+    Io{
+        source: std::io::Error,
+    },
+    #[snafu(display("The target of the symlink already exists"))]
     AlreadyExists,
-}
-
-impl From<std::io::Error> for SymlinkError {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err)
-    }
 }
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -100,7 +97,7 @@ pub async fn symlink<P: AsRef<Path> + Debug + Unpin + Send + Clone + 'static, Q:
     info!(log, "symlinking {:?} to {:?}", src, dst);
     if SYMLINKS_BLOCKED.load(Ordering::Acquire) {
         warn!(log, "symlink permission denied, falling back to copy");
-        fs_copy(src,dst).await?;
+        fs_copy(src,dst).await.context(Io)?;
         Ok(())
     } else {
         match symlink_internal(src.clone(), dst.clone()).await {
@@ -116,11 +113,11 @@ pub async fn symlink<P: AsRef<Path> + Debug + Unpin + Send + Clone + 'static, Q:
             {
                 warn!(log, "Symlink permission denied, falling back to copy");
                 SYMLINKS_BLOCKED.store(true, Ordering::Release);
-                fs_copy(src,dst).await?;
+                fs_copy(src,dst).await.context(Io)?;
                 Ok(())
             }
             Ok(_) => Ok(()),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(Io.into_error(e)),
         }
     }
 }

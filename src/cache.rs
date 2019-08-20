@@ -2,7 +2,10 @@ use crate::download;
 use slog::Logger;
 use std::path::{Path, PathBuf};
 use std::result::Result;
-use crate::util;
+use crate::{
+    util,
+    error::prelude::*,
+};
 use http::Uri;
 
 pub trait Cacheable: Send + Sized + 'static {
@@ -12,7 +15,7 @@ pub trait Cacheable: Send + Sized + 'static {
     fn reader(self, manager: download::Manager, log: Logger) -> download::BoxFuture<tokio::fs::File> {
         Box::pin(async move{
             let path = Self::Cache::with(self, manager, log).await?;
-            Ok(tokio::fs::File::open(path).await?)
+            Ok(tokio::fs::File::open(path).await.context(download::Io)?)
         })
     }
     fn install_at(
@@ -42,13 +45,13 @@ pub trait Cache<T: Cacheable + Send + 'static> {
             let cached_path = Self::with(t, manager, log.clone()).await?;
             info!(log, "installing item"; "location"=>location.as_path().to_string_lossy().into_owned());
 
-            tokio::fs::create_dir_all(&location).await?;
+            tokio::fs::create_dir_all(&location).await.context(download::Io)?;
 
             if let Some(name) = cached_path.file_name() {
                 location.push(name);
             }
             match util::symlink(cached_path, location, &log).await {
-                Err(util::SymlinkError::Io(ioe)) => return Err(ioe.into()),
+                Err(util::SymlinkError::Io{source}) => return Err(download::Symlink.into_error(source)),
                 Err(util::SymlinkError::AlreadyExists) => {
                     //TODO: verify the file, and replace/redownload it if needed
                     warn!(log, "File already exists, assuming content is correct");
@@ -88,7 +91,7 @@ impl<T: Cacheable + Send + 'static> crate::cache::Cache<T> for FolderCache {
             }else{
                 //invalidate cache
                 warn!(log, "Removing invalid cache folder {:?}", cached_path);
-                tokio::fs::remove_dir(&cached_path).await?;
+                tokio::fs::remove_dir(&cached_path).await.context(download::Io)?;
                 //FIXME: will retry forever
                 //retry
                 Ok(Self::with(t, manager, log).await?)

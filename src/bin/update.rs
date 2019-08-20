@@ -18,22 +18,39 @@ use sentry;
 use modpack_tool::{
     Result,
     mod_source::{ModpackConfig,IndirectableModpack},
+    error::prelude::*,
 };
 
+use snafu::Snafu;
 use slog::{Drain, Logger};
-
 use std::sync::{Arc, Mutex};
 
 async fn load_hybrid_config() -> modpack_tool::Result<Option<ModpackConfig>>{
+    #[derive(Debug,Snafu)]
+    enum HybridConfigError{
+        #[snafu(display("Io Error while opening hybrid config: {}", source))]
+        Io{
+            source: std::io::Error,
+        },
+        #[snafu(display("Zip Error while opening hybrid config: {}", source))]
+        Zip{
+            source: zip::result::ZipError,
+        },
+        #[snafu(display("Json Error while opening hybrid config: {}", source))]
+        Json{
+            source: serde_json::Error,
+        },
+    }
+
     let own_path = std::env::args().nth(0).expect("arg 0 should always be available");
-    let file = tokio::fs::File::open(own_path).await?;
+    let file = tokio::fs::File::open(own_path).await.context(Io).erased()?;
     let mut zip_reader = match zip::read::ZipArchive::new(file.into_std()){
         Err(zip::result::ZipError::InvalidArchive(_)) => {
             return Ok(None);
         }
         other => other,
-    }?;
-    let indirected: IndirectableModpack = serde_json::from_reader(zip_reader.by_name("config.json")?)?;
+    }.context(Zip).erased()?;
+    let indirected: IndirectableModpack = serde_json::from_reader(zip_reader.by_name("config.json").context(Zip).erased()?).context(Json).erased()?;
     Ok(Some(indirected.resolve().await?))
 }
 
@@ -64,7 +81,7 @@ async fn async_main() -> Result<()> {
         command.dispatch(log).await 
     };
     if let Err(e) = cmd_res {
-        println!("Reporting error to sentry: {:?}", e);
+        println!("Error: {}", e);
         sentry::integrations::failure::capture_fail(&e);
     }
     Ok(())

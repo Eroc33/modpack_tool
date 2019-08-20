@@ -15,6 +15,7 @@ use crate::{
     download::HttpSimple,
     curseforge::ReleaseStatus,
     mod_source::ModList,
+    error::{self,ResultExt as _},
 };
 use std::{
     io::Write,
@@ -22,7 +23,7 @@ use std::{
 };
 use url::Url;
 use structopt::StructOpt;
-use failure::ResultExt;
+use snafu::{Snafu,OptionExt,ResultExt};
 
 use termcolor::{ColorSpec, WriteColor, Color};
 
@@ -50,8 +51,8 @@ macro_rules! format_coloredln{
     ($output:expr; $($rest:tt)+ ) => {
         let mut buf = $output.buffer();
         format_colored!(_impl buf; $($rest)+ );
-        writeln!(buf)?;
-        $output.print(&buf)?;
+        writeln!(buf).context(error::Console)?;
+        $output.print(&buf).context(error::Console)?;
     };
 }
 
@@ -59,21 +60,21 @@ macro_rules! format_colored{
     ($output:expr; $($rest:tt)+ ) => {
         let mut buf = $output.buffer();
         format_colored!(_impl buf; $($rest)+ );
-        $output.print(&buf)?;
+        $output.print(&buf).context(error::Console)?;
     };
     (_impl $buf:expr ; ($color:expr){ $($inner: tt)* }, $($rest: tt)+ ) =>{
-        $buf.set_color($color)?;
+        $buf.set_color($color).context(error::Console)?;
         format_colored!(_impl $buf; $($inner)* );
-        $buf.set_color(&DEFAULT_COLOR)?;
+        $buf.set_color(&DEFAULT_COLOR).context(error::Console)?;
         format_colored!(_impl $buf; $($rest)* );
     };
     (_impl $buf:expr ; ($color:expr){ $($inner: tt)* } ) =>{
-        $buf.set_color($color)?;
+        $buf.set_color($color).context(error::Console)?;
         format_colored!(_impl $buf; $($inner)* );
-        $buf.set_color(&DEFAULT_COLOR)?;
+        $buf.set_color(&DEFAULT_COLOR).context(error::Console)?;
     };
     (_impl $buf:expr ; $($rest: tt)* ) =>{
-        write!($buf, $($rest)+ )?;
+        write!($buf, $($rest)+ ).context(error::Console)?;
     };
 }
 
@@ -193,14 +194,14 @@ fn prompt_yes_no(prompt: &str, default: Response) -> Response {
 }
 
 //Checks if any curseforge projects have been moved, and updates the names
-fn update_project_names(mods: ModList) -> Vec<impl Future<Output=Result<ModSource,crate::Error>> + Send + 'static>{
+fn update_project_names(mods: ModList) -> Vec<impl Future<Output=Result<ModSource,error::Error>> + Send + 'static>{
     let http_client = HttpSimple::new();
     mods.into_iter().map(|modd|{
         let http_client = http_client.clone();
         async move{
             match modd {
                 ModSource::CurseforgeMod(cfm) => {
-                    let (_res,url) = http_client.get_following_redirects(cfm.project_uri()?)?.await?;
+                    let (_res,url) = http_client.get_following_redirects(cfm.project_uri().context(error::Uri)?).context(error::Download)?.await.context(error::Download)?;
                     let id = crate::curseforge::parse_modid_from_url(url.as_str()).expect("Bad redirect on curseforge?");
                     Ok(ModSource::CurseforgeMod(crate::curseforge::Mod{
                         id,
@@ -270,7 +271,7 @@ fn new_version(
     target_game_version: semver::VersionReq,
     pack_path: String,
     mut pack: ModpackConfig,
-) -> impl Future<Output=Result<(), crate::Error>> + Send + 'static {
+) -> impl Future<Output=Result<(), error::Error>> + Send + 'static {
     let http_client = HttpSimple::new();
 
     let strm = update_project_names(pack.mods.clone()).into_iter().collect::<futures::stream::futures_unordered::FuturesUnordered<_>>()
@@ -383,8 +384,8 @@ fn new_version(
                 //dedup via hashset
                 pack.mods = compatible.into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
 
-                let mut file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
-                crate::async_json::write_pretty(&mut file, &pack).await?;
+                let mut file = tokio::fs::File::create(pack_path.clone()).await.context(MissingPack{pack_file: pack_path}).erased()?;
+                crate::async_json::write_pretty(&mut file, &pack).await.context(error::AsyncJson)?;
                 return Ok(());
             }
         }else{
@@ -407,7 +408,7 @@ fn same_version(
     pack_path: String,
     mut pack: ModpackConfig,
     release_status: ReleaseStatus,
-) -> impl Future<Output=Result<(), crate::Error>> + Send + 'static {
+) -> impl Future<Output=Result<(), error::Error>> + Send + 'static {
     let http_client = HttpSimple::new();
 
     let target_game_version = pack.version.clone();
@@ -460,9 +461,28 @@ fn same_version(
             pack.replace_mod(modsource);
         }
 
-        let mut file = tokio::fs::File::create(pack_path).await.expect("pack does not exist");
-        crate::async_json::write_pretty(&mut file, &pack).await?;
+        let mut file = tokio::fs::File::create(pack_path.clone()).await.context(MissingPack{pack_file: pack_path}).erased()?;
+        crate::async_json::write_pretty(&mut file, &pack).await.context(error::AsyncJson)?;
         Ok(())
+    }
+}
+
+#[derive(Debug,Snafu)]
+pub enum Error{
+    #[snafu(display("pack {} does not exist",pack_file))]
+    MissingPack{
+        pack_file: String,
+        source: std::io::Error,
+    },
+    #[snafu(display("pack file {} is in bad format", pack_file))]
+    BadPackfile{
+        pack_file: String,
+        source: serde_json::Error,
+    },
+    #[snafu(display("{} was not a semver version requirement: {}", arg, source))]
+    BadSemverReq{
+        source: semver::ReqParseError,
+        arg: String,
     }
 }
 
@@ -476,13 +496,12 @@ pub struct Args{
     mc_version: Option<String>,
 }
 
-pub async fn upgrade(args: Args) -> Result<(), crate::Error>{
+pub async fn upgrade(args: Args) -> Result<(), error::Error>{
 
     let Args{pack_file, mc_version} = args;
 
-    let mut file = std::fs::File::open(&pack_file)
-        .context(format!("pack {} does not exist", pack_file))?;
-    let pack: ModpackConfig = serde_json::from_reader(&mut file).context("pack file in bad format")?;
+    let mut file = std::fs::File::open(&pack_file).with_context(|| MissingPack{pack_file: pack_file.clone()}).erased()?;
+    let pack: ModpackConfig = serde_json::from_reader(&mut file).with_context(|| BadPackfile{pack_file: pack_file.clone()}).erased()?;
 
     if let Some(ver) = mc_version{
         let ver = if ver.chars()
@@ -496,10 +515,7 @@ pub async fn upgrade(args: Args) -> Result<(), crate::Error>{
         } else {
             ver.to_owned()
         };
-        let ver = semver::VersionReq::parse(ver.as_str()).context(format!(
-            "Second argument ({}) was not a semver version requirement",
-            ver
-        ))?;
+        let ver = semver::VersionReq::parse(ver.as_str()).context(BadSemverReq{arg: ver}).erased()?;
         new_version(
             ver,
             pack_file,
@@ -507,11 +523,9 @@ pub async fn upgrade(args: Args) -> Result<(), crate::Error>{
         ).await
     }else{
         let release_status = pack.auto_update_release_status
-            .ok_or(crate::Error::AutoUpdateDisabled)
-            .context(format!(
-                "Pack {} has no auto_update_release_status",
-                pack_file
-            ))?;
+            .with_context(|| error::AutoUpdateDisabled{
+                pack_file: pack_file.clone()
+            })?;
         same_version(
             pack_file,
             pack,

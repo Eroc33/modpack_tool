@@ -1,7 +1,10 @@
 use http::{self, Uri};
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::download;
+use crate::{
+    download,
+    error::prelude::*,
+};
 
 pub mod api;
 mod release_status;
@@ -85,7 +88,7 @@ impl crate::cache::Cacheable for Mod {
             self.id,
             self.version.to_string()
         );
-        Ok(Uri::from_str(&loc)?)
+        Ok(Uri::from_str(&loc).context(download::Uri)?)
     }
 }
 impl Into<crate::mod_source::ModSource> for Mod {
