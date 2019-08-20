@@ -36,11 +36,11 @@ pub mod error{
             source: std::io::Error
         },
         #[snafu(display("Uri error: {}", source))]
-        Uri{
+        BadUri{
             source: http::uri::InvalidUri,
         },
         #[snafu(display("Url error: {}", source))]
-        Url{
+        BadUrl{
             source: url::ParseError,
         },
         #[snafu(display("Http error: {}", source))]
@@ -69,7 +69,12 @@ pub mod error{
         #[snafu(display("Error while symlinking: {}", source))]
         Symlink{
             source: std::io::Error,
-        }
+        },
+        #[snafu(display("Cache error: {}", source))]
+        Cached{
+            #[snafu(source(from(crate::cache::Error, Box::new)))]
+            source: Box<crate::cache::Error>,
+        },
     }
 }
 pub use error::Error;
@@ -104,7 +109,7 @@ impl<D: Downloadable + Send + 'static> DownloadMulti for Vec<D> {
 impl Downloadable for url::Url {
     fn download(self, location: PathBuf, manager: Manager, log: Logger) -> BoxFuture<()> {
         Box::pin(async move{
-            let uri = util::url_to_uri(&self)?;
+            let uri = util::url_to_uri(&self).context(error::BadUri)?;
             uri.download(location, manager, log).await?;
             Ok(())
         })
@@ -300,7 +305,7 @@ pub struct RedirectFollower {
 ///#WARNING: this *only* works for bodyless requests
 impl RedirectFollower {
     pub fn new(client: HttpSimple, request: Request<hyper::Body>) -> Result<Self> {
-        let url = crate::util::uri_to_url(request.uri())?;
+        let url = crate::util::uri_to_url(request.uri()).context(error::BadUrl)?;
         let method = request.method().clone();
         let headers = request.headers().clone();
         let version = request.version();
@@ -336,8 +341,8 @@ impl Future for RedirectFollower {
                                 .take()
                                 .context(error::MalformedRedirect)?;
                             let next_url = current_location.join(&*next.to_str()
-                                .expect("Location header should only ever be ascii")).context(error::Url)?;
-                            let next = crate::util::url_to_uri(&next_url)?;
+                                .expect("Location header should only ever be ascii")).context(error::BadUrl)?;
+                            let next = crate::util::url_to_uri(&next_url).context(error::BadUri)?;
                             let mut req = Request::builder()
                                 .method(this.method.clone())
                                 .uri(next.clone())

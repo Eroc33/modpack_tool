@@ -54,16 +54,18 @@ impl Downloadable for ModSource {
         manager: download::Manager,
         log: Logger,
     ) -> download::BoxFuture<()> {
-        match self {
-            Self::CurseforgeMod(modd) => {
-                curseforge::Cache::install_at(modd, location, manager, log)
+        Box::pin(async move{
+            match self {
+                Self::CurseforgeMod(modd) => {
+                    curseforge::Cache::install_at(modd, location, manager, log).await.context(crate::download::error::Cached)?;
+                }
+                Self::MavenMod { repo, artifact } => {
+                    let repo = Uri::from_str(repo.as_str()).context(crate::download::error::BadUri)?;
+                    artifact.download_from(location.as_ref(), repo, manager, log).await.context(crate::download::error::Cached)?;
+                }
             }
-            Self::MavenMod { repo, artifact } => Box::pin(async move{
-                let repo = Uri::from_str(repo.as_str()).context(crate::download::error::Uri)?;
-                artifact.download_from(location.as_ref(), repo, manager, log).await?;
-                Ok(())
-            }),
-        }
+            Ok(())
+        })
     }
 }
 

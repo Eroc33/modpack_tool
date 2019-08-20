@@ -46,12 +46,12 @@ mod tests {
     }
 }
 
-pub fn uri_to_url(uri: &Uri) -> crate::download::Result<Url> {
-    Ok(Url::from_str(format!("{}", uri).as_str()).context(crate::download::error::Url)?)
+pub fn uri_to_url(uri: &Uri) -> Result<Url,url::ParseError> {
+    Ok(Url::from_str(format!("{}", uri).as_str())?)
 }
 
-pub fn url_to_uri(url: &Url) -> crate::download::Result<Uri> {
-    Ok(Uri::from_str(url.as_ref()).context(crate::download::error::Uri)?)
+pub fn url_to_uri(url: &Url) -> Result<Uri, http::uri::InvalidUri> {
+    Ok(Uri::from_str(url.as_ref())?)
 }
 
 pub async fn save_stream_to_file<S>(

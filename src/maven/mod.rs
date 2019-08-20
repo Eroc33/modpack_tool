@@ -17,6 +17,22 @@ use tokio::io::AsyncReadExt;
 mod hash_writer;
 use hash_writer::HashWriter;
 
+mod error{
+    use snafu::Snafu;
+    #[derive(Debug,Snafu)]
+    #[snafu(visibility(pub))]
+    pub enum Error{
+        #[snafu(display("Invalid uri: {}", source))]
+        BadUri{
+            source: http::uri::InvalidUri,
+        },
+        #[snafu(display("Invalid url: {}", source))]
+        BadUrl{
+            source: url::ParseError,
+        },
+    }
+}
+
 #[derive(Debug)]
 pub enum VerifyResult {
     Good,
@@ -49,8 +65,8 @@ impl Cacheable for ResolvedArtifact {
         p.push(&self.artifact.to_path());
         p
     }
-    fn uri(&self) -> crate::download::Result<Uri> {
-        self.artifact.get_uri_on(&self.repo)
+    fn uri(&self) -> crate::cache::Result<Uri> {
+        crate::cache::ResultExt::erased(self.artifact.get_uri_on(&self.repo))
     }
 }
 
@@ -59,7 +75,7 @@ impl cache::Cache<ResolvedArtifact> for Cache {
         artifact: ResolvedArtifact,
         manager: download::Manager,
         log: Logger,
-    ) -> download::BoxFuture<PathBuf> {
+    ) -> crate::cache::BoxFuture<PathBuf> {
         let cached_path = artifact.cached_path();
         let log = log.new(
             o!("artifact"=>artifact.artifact.to_string(),"repo"=>artifact.repo.to_string(),"cached_path"=>cached_path.as_path().to_string_lossy().into_owned()),
@@ -68,9 +84,9 @@ impl cache::Cache<ResolvedArtifact> for Cache {
             info!(log, "caching maven artifact");
             if !Self::is_cached(&artifact) {
                 info!(log, "artifact is not cached, downloading now");
-                let url = artifact.uri()?;
+                let uri = artifact.uri()?;
                 manager
-                    .download(url, cached_path.clone(), false, &log).await?;
+                    .download(uri.clone(), cached_path.clone(), false, &log).await.context(crate::cache::error::Downloading{uri})?;
             }
             Ok(cached_path)
         })
@@ -115,11 +131,11 @@ impl Artifact {
         p
     }
 
-    pub fn get_uri_on(&self, base: &Uri) -> crate::download::Result<Uri> {
-        let base = crate::util::uri_to_url(base)?;
+    pub fn get_uri_on(&self, base: &Uri) -> Result<Uri,error::Error> {
+        let base = crate::util::uri_to_url(base).context(error::BadUrl)?;
         let path = self.to_path();
-        let url = base.join(path.to_str().expect("non unicode path encountered")).context(download::error::Url)?;
-        crate::util::url_to_uri(&url)
+        let url = base.join(path.to_str().expect("non unicode path encountered")).context(error::BadUrl)?;
+        crate::util::url_to_uri(&url).context(error::BadUri)
     }
 
     fn group_path(&self) -> PathBuf {
@@ -157,7 +173,7 @@ impl Artifact {
         repo_uri: Uri,
         manager: download::Manager,
         log: Logger,
-    ) -> impl Future<Output=Result<(), crate::download::Error>> + Send {
+    ) -> impl Future<Output=Result<(), crate::cache::Error>> + Send {
         Cache::install_at(self.resolve(repo_uri), location.to_owned(), manager, log)
     }
 }
@@ -167,11 +183,11 @@ impl ResolvedArtifact {
         self.artifact.to_path()
     }
     pub fn sha_uri(&self) -> crate::download::Result<Uri> {
-        let mut url = crate::util::uri_to_url(&self.uri()?)?;
+        let mut url = crate::util::uri_to_url(&self.uri().context(download::error::Cached)?).context(download::error::BadUrl)?;
         let mut path = url.path().to_owned();
         path.push_str(".sha1");
         url.set_path(path.as_ref());
-        crate::util::url_to_uri(&url)
+        crate::util::url_to_uri(&url).context(download::error::BadUri)
     }
     pub fn install_at_no_classifier(
         self,
@@ -179,38 +195,35 @@ impl ResolvedArtifact {
         manager: download::Manager,
         log: Logger,
     ) -> impl Future<Output=crate::download::Result<()>> + Send {
-        <Self as Cacheable>::Cache::with(self.clone(), manager, log.clone()).and_then(
-            move |cached_path| {
-                async move{
-                    let Self { artifact, repo } = self;
-                    let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
-                    info!(log, "installing maven artifact");
+        async move{
+            let cached_path = <Self as Cacheable>::Cache::with(self.clone(), manager, log.clone()).await.context(crate::download::error::Cached)?;
+            let Self { artifact, repo } = self;
+            let log = log.new(o!("artifact"=>artifact.to_string(),"repo"=>repo.to_string()));
+            info!(log, "installing maven artifact");
 
-                    let cached_path_no_classifier = Self {
-                        artifact: Artifact {
-                            classifier: None,
-                            ..artifact.clone()
-                        },
-                        repo,
-                    }.cached_path();
+            let cached_path_no_classifier = Self {
+                artifact: Artifact {
+                    classifier: None,
+                    ..artifact.clone()
+                },
+                repo,
+            }.cached_path();
 
-                    fs::create_dir_all(location.to_owned()).context(download::error::Io)?;
+            fs::create_dir_all(location.to_owned()).context(download::error::Io)?;
 
-                    if let Some(name) = cached_path_no_classifier.file_name() {
-                        location.push(name);
-                    }
-                    match util::symlink(cached_path, location, &log).await {
-                        Err(util::SymlinkError::Io{source}) => return Err(download::error::Symlink.into_error(source)),
-                        Err(util::SymlinkError::AlreadyExists) => {
-                            //TODO: verify the file, and replace/redownload it if needed
-                            warn!(log, "File already exists, assuming content is correct");
-                        }
-                        Ok(_) => {}
-                    }
-                    Ok(())
+            if let Some(name) = cached_path_no_classifier.file_name() {
+                location.push(name);
+            }
+            match util::symlink(cached_path, location, &log).await {
+                Err(util::SymlinkError::Io{source}) => return Err(download::error::Symlink.into_error(source)),
+                Err(util::SymlinkError::AlreadyExists) => {
+                    //TODO: verify the file, and replace/redownload it if needed
+                    warn!(log, "File already exists, assuming content is correct");
                 }
-            },
-        )
+                Ok(_) => {}
+            }
+            Ok(())
+        }
     }
 }
 

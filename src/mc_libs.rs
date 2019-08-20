@@ -115,12 +115,12 @@ impl Downloadable for MCLibraryListing {
                     None //nothing to download
                 } else {
                     artifact.classifier = self.platform_native_classifier();
-                    let base = Uri::from_str(MC_LIBS_MAVEN).context(crate::download::error::Uri)?;
+                    let base = Uri::from_str(MC_LIBS_MAVEN).context(crate::download::error::BadUri)?;
                     Some(artifact.resolve(base))
                 }
             } else {
                 let artifact = self.name.parse::<maven::Artifact>().unwrap();
-                let base = Uri::from_str(MC_LIBS_MAVEN).context(crate::download::error::Uri)?;
+                let base = Uri::from_str(MC_LIBS_MAVEN).context(crate::download::error::BadUri)?;
                 Some(artifact.resolve(base))
             };
             if let Some(resolved_artifact) = resolved_artifact {

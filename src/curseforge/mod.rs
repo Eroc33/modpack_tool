@@ -82,13 +82,13 @@ impl crate::cache::Cacheable for Mod {
         p
     }
 
-    fn uri(&self) -> Result<Uri, download::Error> {
+    fn uri(&self) -> Result<Uri, crate::cache::Error> {
         let loc = format!(
             "https://www.curseforge.com/minecraft/mc-mods/{}/download/{}/file",
             self.id,
             self.version.to_string()
         );
-        Ok(Uri::from_str(&loc).context(download::error::Uri)?)
+        Ok(Uri::from_str(&loc).context(crate::cache::error::BadUri)?)
     }
 }
 impl Into<crate::mod_source::ModSource> for Mod {
