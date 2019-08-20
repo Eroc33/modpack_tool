@@ -2,7 +2,6 @@ use http::{self, Uri};
 use std::path::PathBuf;
 use std::str::FromStr;
 use crate::{
-    download,
     error::prelude::*,
 };
 
